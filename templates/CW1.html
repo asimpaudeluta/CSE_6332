@@ -4,19 +4,18 @@
   <meta charset="UTF-8">
   <title>Milky Way Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='CW1.css') }}">
 </head>
 <body>
-  <nav class="navbar">
-    <a>Simple Viewer (CW 1)</a>
-    <a>Data I/O and Metadata Query (HW 1)</a>
-    <a>Quiz 1</a>
-  </nav>
+<!--  <nav class="navbar">-->
+<!--    <a>Simple Viewer (CW 1)</a>-->
+<!--    <a>Data I/O and Metadata Query (HW 1)</a>-->
+<!--    <a>Quiz 1</a>-->
+<!--  </nav>-->
 
   <main class="container">
     <section class="left">
       <img src="{{ url_for('get_image') }}" alt="Milky Way">
-      <h2>Current Text</h2>
       <pre id="text-content">{{ content | e }}</pre>
     </section>
 

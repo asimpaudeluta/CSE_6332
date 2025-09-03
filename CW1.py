@@ -11,7 +11,7 @@ TEXT_FILE_NAME = "milkyway.txt"
 IMAGE_FILE_NAME = "milkyway.jpg"
 CONTAINER_URL = "https://cse6332.blob.core.windows.net/privatecontainer"
 
-SAS_TOKEN = os.getenv("AZURE_SAS_TOKEN")
+SAS_TOKEN = os.getenv("SAS_TOKEN")
 if not SAS_TOKEN:
     try:
         with open("secrets.json") as f:
@@ -52,7 +52,7 @@ def write_text_blob(comment: str, filename: str = TEXT_FILE_NAME) -> bool:
 @app.route("/", methods=["GET"])
 def index():
     content = read_text_blob(TEXT_FILE_NAME)
-    return render_template("index.html", content=content)
+    return render_template("CW1.html", content=content)
 
 @app.route("/upload_text", methods=["POST"])
 def upload_text():

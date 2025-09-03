@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Data I/O and Metadata Query</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='HW1.css') }}">
+</head>
+<body>
+<!--  <nav class="navbar">-->
+<!--    <a>Simple Viewer (CW 1)</a>-->
+<!--    <a>Data I/O and Metadata Query (HW 1)</a>-->
+<!--    <a>Quiz 1</a>-->
+<!--  </nav>-->
+
+  <main class="container">
+    <section class="left">
+      <div class="left-top">
+    <!--      <img src="{{ url_for('get_image') }}" alt="Milky Way">-->
+
+    <!-- Raw Metadata -->
+    <!--      <pre id="text-content">{{ content | e }}</pre>-->
+    <!-- JSON to Table Metadata -->
+        {% if metadata_exists and metadata_rows %}
+          <h2>Metadata</h2>
+          <table>
+            <thead>
+              <tr>
+                {% for h in metadata_rows[0] %}
+                  <th>{{ h or '' }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in metadata_rows[1:] %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell or '' }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <pre id="text-content">{{ content | e }}</pre>
+        {% endif %}
+      </div>
+      <div class="left-bottom">
+        <iframe name="preview" id="preview" class="preview-frame"
+                src="{{ url_for('preview_default') }}"></iframe>
+      </div>
+    </section>
+
+
+    <section class="right">
+      <!--      <form action="{{ url_for('upload_csv') }}" method="post" enctype="multipart/form-data">-->
+<!--        <input type="file" name="file" accept=".csv">-->
+<!--        <button type="submit">Upload CSV</button>-->
+<!--      </form>-->
+      <form id="upload-form" action="{{ url_for('upload_csv') }}" method="post" enctype="multipart/form-data">
+        <input id="file" type="file" name="file" accept=".csv" style="display:none;"
+               onchange="document.getElementById('upload-form').submit()">
+        <button type="button" onclick="document.getElementById('file').click();">
+          {% if metadata_exists %}
+            Metadata exists — Overwrite CSV?
+          {% else %}
+            Upload Metadata CSV
+          {% endif %}
+        </button>
+      </form>
+
+      <form action="{{ url_for('update_metadata') }}" method="post" style="margin:12px 0;">
+        <button type="submit"
+                {% if not metadata_exists %}disabled title="Upload metadata.csv first" style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+          Update Image Availability in Metadata
+        </button>
+        {% if meta_msg %}
+          <span class="status" style="margin-left:8px;">{{ meta_msg }}</span>
+        {% endif %}
+      </form>
+
+      <form id="upload-image-form" action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data" style="margin-top:12px;">
+        <label for="name-select">Name:</label>
+        <select id="name-select" name="name" required
+                {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+          {% for n in name_options %}
+            <option value="{{ n }}">{{ n }}</option>
+          {% endfor %}
+        </select>
+        <input id="image-file" type="file" name="image" accept="image/*" style="display:none;"
+               onchange="document.getElementById('upload-image-form').submit()">
+        <button type="button"
+                {% if not metadata_exists %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}
+                onclick="document.getElementById('image-file').click();">
+          Upload / Replace Image
+        </button>
+        {% if img_msg %}
+          <span class="status" style="margin-left:8px;">{{ img_msg }}</span>
+        {% endif %}
+      </form>
+
+      <form id="delete-image-form" action="{{ url_for('delete_image') }}" method="post" style="margin-top:12px;">
+        <label for="name-select-img-del">Name:</label>
+        <select id="name-select-img-del" name="name" required
+                {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+          {% for n in name_options %}
+            <option value="{{ n }}">{{ n }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit"
+                {% if not metadata_exists %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+          Delete Image
+        </button>
+        {% if img_msg_del %}
+          <span class="status" style="margin-left:8px;">{{ img_msg_del }}</span>
+        {% endif %}
+      </form>
+
+      <h3 style="margin-top:16px;">Simple Query</h3>
+      <form action="{{ url_for('simple_query') }}" method="post" target="preview">
+        <label>Column:</label>
+        <select name="column" required
+                {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+          {% for c in columns %}
+            <option value="{{ c }}">{{ c }}</option>
+          {% endfor %}
+        </select>
+        <label style="margin-left:8px;">Expr:</label>
+        <input name="expr" placeholder="value or >500, <50, ==7"
+               {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+        <label style="margin-left:8px;">or Dropdown:</label>
+        <select name="value"
+                {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+          <option value=""></option>
+          {% for n in name_options %}
+            <option value="{{ n }}">{{ n }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit"
+                {% if not metadata_exists %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+          Run
+        </button>
+      </form>
+
+      <h3 style="margin-top:16px;">Update Table</h3>
+      <form action="{{ url_for('update_cell') }}" method="post" target="preview">
+        <label style="margin-left:8px;">Row (Name/1st col):</label>
+        <select name="row_key" required
+                {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+          {% for n in name_options %}
+            <option value="{{ n }}">{{ n }}</option>
+          {% endfor %}
+        </select>
+        <label>Column:</label>
+        <select name="column" required
+                {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+          {% for c in columns %}
+            <option value="{{ c }}">{{ c }}</option>
+          {% endfor %}
+        </select><br>
+        <label style="margin-left:8px;">New Value:</label>
+        <input name="new_value" placeholder="leave blank for empty"
+               {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+        <button type="submit"
+                {% if not metadata_exists %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+          Update
+        </button>
+      </form>
+    </section>
+  </main>
+</body>
+<!-- Want to remove this later, may be easier ways -->
+<script>
+(function(){
+  try{
+    var cached = sessionStorage.getItem('previewHTML');
+    if (cached) {
+      var iframe = document.getElementById('preview');
+      if (iframe) { iframe.srcdoc = cached; }
+      sessionStorage.removeItem('previewHTML');
+    }
+  }catch(e){}
+})();
+</script>
+</html>
