@@ -509,6 +509,7 @@ def age_range_query():
         return Response(render_preview("Failed to load metadata."), mimetype="text/html")
 
     header = rows[0]
+
     # Find "Age" column (case-insensitive)
     age_idx = None
     for i, h in enumerate(header):
@@ -518,7 +519,7 @@ def age_range_query():
     if age_idx is None:
         return Response(render_preview("No 'Age' column found."), mimetype="text/html")
 
-    # Also get Picture column index (case-sensitive to your CSV header)
+    # Picture column (case-sensitive to your CSV header)
     pic_idx = header.index("Picture") if "Picture" in header else None
 
     # Filter rows by numeric Age, inclusive range
@@ -547,34 +548,51 @@ def age_range_query():
         ) + "</tr>"
     table_html += "</tbody></table>"
 
-    # ---- Pictures: use ONLY the Picture column from the filtered set ---- #
-    images = []
-    seen_files = set()
-    if pic_idx is not None:
-        for r in kept[1:]:
-            pic = r[pic_idx] if pic_idx < len(r) else None
-            if not pic:
-                continue
-            if pic not in seen_files and blob_exists(pic):
-                seen_files.add(pic)
-                images.append(pic)
-
+    # ---- Pictures: show ALL pictures referenced in Picture column (no filtering) ---- #
+    # Supports multiple entries per cell separated by ; , | or whitespace.
     imgs_html = ""
-    if images:
-        imgs_html += "<div style='margin-top:12px'><h4>Pictures</h4>"
-        imgs_html += "<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;'>"
-        for fname in images:
-            src = get_blob_url(fname)  # assume Picture stores the blob filename
-            cap = fname                # caption from picture filename
-            imgs_html += (
-                "<figure style='margin:0;padding:0;text-align:center;background:#000'>"
-                f"<img src='{src}' alt='{cap}' style='max-width:100%;height:140px;object-fit:contain;display:block;'>"
-                f"<figcaption style='font-size:12px;padding:4px 0'>{cap}</figcaption>"
-                "</figure>"
-            )
-        imgs_html += "</div></div>"
+    if pic_idx is not None:
+        def is_url(s: str) -> bool:
+            s = s.lower()
+            return s.startswith("http://") or s.startswith("https://") or s.startswith("data:")
+
+        # Collect image sources in row order, keeping duplicates if present
+        img_srcs = []
+        for r in kept[1:]:
+            if pic_idx < len(r) and r[pic_idx]:
+                raw = str(r[pic_idx]).strip()
+                # split on ; , | or whitespace
+                parts = re.split(r"[;,\|\s]+", raw)
+                for p in parts:
+                    p = p.strip().strip('"').strip("'")
+                    if not p:
+                        continue
+                    src = p if is_url(p) else get_blob_url(p)
+                    img_srcs.append((p, src))  # (caption base, actual src)
+
+        if img_srcs:
+            imgs_html += "<div style='margin-top:12px'><h4>Pictures</h4>"
+            imgs_html += "<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;'>"
+            # Render every referenced picture. If one fails to load, show a small error badge.
+            for cap_base, src in img_srcs:
+                safe_cap = cap_base
+                imgs_html += (
+                    "<figure style='margin:0;padding:0;text-align:center;background:#000;position:relative;'>"
+                    f"<img src='{src}' alt='{safe_cap}' "
+                    "style='max-width:100%;height:140px;object-fit:contain;display:block;' "
+                    "onerror=\"this.style.display='none';"
+                    "var e=document.createElement('div');"
+                    "e.style.cssText='color:#f66;font-size:11px;padding:6px;';"
+                    "e.textContent='(image failed) ';"
+                    "this.parentNode.appendChild(e);\""
+                    ">"
+                    f"<figcaption style='font-size:12px;padding:4px 0'>{safe_cap}</figcaption>"
+                    "</figure>"
+                )
+            imgs_html += "</div></div>"
 
     return Response(render_preview(table_html + imgs_html), mimetype="text/html")
+
 
 
 @app.route("/delete_row", methods=["POST"])
