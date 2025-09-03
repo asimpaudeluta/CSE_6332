@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Data I/O and Metadata Query</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='Qz1.css') }}">
+</head>
+<body>
+<!--  <nav class="navbar">-->
+<!--    <a>Simple Viewer (CW 1)</a>-->
+<!--    <a>Data I/O and Metadata Query (HW 1)</a>-->
+<!--    <a>Quiz 1</a>-->
+<!--  </nav>-->
+<h1> ASIM PAUDEL (1002122407)</h1>
+<img
+  src="{{ url_for('get_image') }}?file=m.jpg"
+  alt="m image"
+  style="display:block;margin:12px auto;max-width:320px;height:auto;"
+/>
+  <main class="container">
+    <a href="\10">Q10</a>
+      <a href="\11">Q11</a>
+      <a href="\12">Q12</a>
+      <a href="\13">Q13</a>
+  </main>
+</body>
+<!-- Want to remove this later, may be easier ways -->
+<script>
+(function(){
+  try{
+    var cached = sessionStorage.getItem('previewHTML');
+    if (cached) {
+      var iframe = document.getElementById('preview');
+      if (iframe) { iframe.srcdoc = cached; }
+      sessionStorage.removeItem('previewHTML');
+    }
+  }catch(e){}
+})();
+</script>
+</html>

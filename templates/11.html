@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Data I/O and Metadata Query</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='Qz1.css') }}">
+</head>
+<body>
+<!--  <nav class="navbar">-->
+<!--    <a>Simple Viewer (CW 1)</a>-->
+<!--    <a>Data I/O and Metadata Query (HW 1)</a>-->
+<!--    <a>Quiz 1</a>-->
+<!--  </nav>-->
+<h1> ASIM PAUDEL (1002122407)</h1>
+  <main class="container">
+    <section class="left">
+      <div class="left-top">
+        {% if metadata_exists and metadata_rows %}
+          <h2>Metadata</h2>
+          <table>
+            <thead>
+              <tr>
+                {% for h in metadata_rows[0] %}
+                  <th>{{ h or '' }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in metadata_rows[1:] %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell or '' }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <pre id="text-content">{{ content | e }}</pre>
+        {% endif %}
+      </div>
+      <div class="left-bottom">
+        <iframe name="preview" id="preview" class="preview-frame"
+                src="{{ url_for('preview_default') }}"></iframe>
+      </div>
+    </section>
+    <div class="right">
+    <h3 style="margin-top:16px;">Simple Query</h3>
+      <h3 style="margin-top:24px;">Age Range Query</h3>
+<form action="{{ url_for('age_range_query') }}" method="post" target="preview">
+  <label>Age from:</label>
+  <input type="number" step="1" name="age_min" placeholder="e.g., 18"
+         {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+
+  <label style="margin-left:8px;">to:</label>
+  <input type="number" step="1" name="age_max" placeholder="e.g., 65"
+         {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+
+  <button type="submit"
+          {% if not metadata_exists %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+    Run
+  </button>
+</form>
+        </div>
+    <a href="\10">Q10</a>
+      <a href="\11">Q11</a>
+      <a href="\12">Q12</a>
+      <a href="\13">Q13</a>
+  </main>
+</body>
+<!-- Want to remove this later, may be easier ways -->
+<script>
+(function(){
+  try{
+    var cached = sessionStorage.getItem('previewHTML');
+    if (cached) {
+      var iframe = document.getElementById('preview');
+      if (iframe) { iframe.srcdoc = cached; }
+      sessionStorage.removeItem('previewHTML');
+    }
+  }catch(e){}
+})();
+</script>
+</html>

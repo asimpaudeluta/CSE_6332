@@ -6,7 +6,7 @@ app = Flask(__name__)
 TEXT_FILE_NAME = "_placeholder.log"
 IMAGE_FILE_NAME = "milkyway.jpg"
 CONTAINER_URL = "https://cse6332.blob.core.windows.net/privatecontainer"
-DIRECTORY =  "HW1"
+DIRECTORY =  "Qz1"
 SAS_TOKEN = os.getenv("SAS_TOKEN")
 
 OPS = {">": operator.gt, "<": operator.lt, ">=": operator.ge, "<=": operator.le, "==": operator.eq, "!=": operator.ne}
@@ -58,7 +58,7 @@ def write_text_blob(comment: str, filename: str = TEXT_FILE_NAME) -> bool:
         return False
 
 #--- METADATA HELPER ---#
-def read_csv_rows(filename: str = "metadata.csv"):
+def read_csv_rows(filename: str = "data.csv"):
     url = get_blob_url(filename)
     r = requests.get(url, timeout=10)
     if not r.ok:
@@ -72,15 +72,21 @@ def read_csv_rows(filename: str = "metadata.csv"):
 
 
 #--- ROUTES ---#
-@app.route("/", methods=["GET"])
-def index():
+@app.route("/10", methods=["GET"])
+def q10():
+    return render_template(
+        "10.html"
+    )
+
+@app.route("/11", methods=["GET"])
+def q11():
     content = read_text_blob(TEXT_FILE_NAME)
-    meta_exists = blob_exists("metadata.csv")
+    meta_exists = blob_exists("data.csv")
     metadata_rows = None
     name_options, columns = [], []
 
     if meta_exists:
-        metadata_rows, err = read_csv_rows("metadata.csv")
+        metadata_rows, err = read_csv_rows("data.csv")
         if err:
             meta_exists = False
             metadata_rows = None
@@ -98,7 +104,7 @@ def index():
     img_msg  = request.args.get("img_msg")
     meta_msg = request.args.get("meta_msg")
     return render_template(
-        "HW1.html",
+        "11.html",
         content=content,
         metadata_exists=meta_exists,
         metadata_rows=metadata_rows,
@@ -108,6 +114,77 @@ def index():
         meta_msg=meta_msg,
     )
 
+@app.route("/12", methods=["GET"])
+def q12():
+    content = read_text_blob(TEXT_FILE_NAME)
+    meta_exists = blob_exists("data.csv")
+    metadata_rows = None
+    name_options, columns = [], []
+
+    if meta_exists:
+        metadata_rows, err = read_csv_rows("data.csv")
+        if err:
+            meta_exists = False
+            metadata_rows = None
+        else:
+            columns = metadata_rows[0] if metadata_rows else []
+            idx = columns.index("Name") if (columns and "Name" in columns) else 0
+            seen = set()
+            for row in metadata_rows[1:]:
+                if idx < len(row) and row[idx]:
+                    n = row[idx]
+                    if n not in seen:
+                        seen.add(n)
+                        name_options.append(n)
+
+    img_msg  = request.args.get("img_msg")
+    meta_msg = request.args.get("meta_msg")
+    return render_template(
+        "12.html",
+        content=content,
+        metadata_exists=meta_exists,
+        metadata_rows=metadata_rows,
+        name_options=name_options,
+        columns=columns,
+        img_msg=img_msg,
+        meta_msg=meta_msg,
+    )
+
+@app.route("/13", methods=["GET"])
+def q13():
+    content = read_text_blob(TEXT_FILE_NAME)
+    meta_exists = blob_exists("data.csv")
+    metadata_rows = None
+    name_options, columns = [], []
+
+    if meta_exists:
+        metadata_rows, err = read_csv_rows("data.csv")
+        if err:
+            meta_exists = False
+            metadata_rows = None
+        else:
+            columns = metadata_rows[0] if metadata_rows else []
+            idx = columns.index("Name") if (columns and "Name" in columns) else 0
+            seen = set()
+            for row in metadata_rows[1:]:
+                if idx < len(row) and row[idx]:
+                    n = row[idx]
+                    if n not in seen:
+                        seen.add(n)
+                        name_options.append(n)
+
+    img_msg  = request.args.get("img_msg")
+    meta_msg = request.args.get("meta_msg")
+    return render_template(
+        "13.html",
+        content=content,
+        metadata_exists=meta_exists,
+        metadata_rows=metadata_rows,
+        name_options=name_options,
+        columns=columns,
+        img_msg=img_msg,
+        meta_msg=meta_msg,
+    )
 
 @app.route("/upload_text", methods=["POST"])
 def upload_text():
@@ -118,14 +195,16 @@ def upload_text():
 
 @app.route("/get_image")
 def get_image():
-    url = get_blob_url(IMAGE_FILE_NAME)
+    filename = request.args.get("file", IMAGE_FILE_NAME)  # default to IMAGE_FILE_NAME
+    url = get_blob_url(filename)
+    print(url)
     try:
         r = requests.get(url, timeout=10)
         if not r.ok:
-            return "Failed to load image from blob.", 502
-        return Response(r.content, mimetype=mimetypes.guess_type(IMAGE_FILE_NAME)[0])
+            return f"Failed to load image {filename} from blob.", 502
+        return Response(r.content, mimetype=mimetypes.guess_type(filename)[0])
     except requests.RequestException:
-        return "Failed to load image from blob.", 502
+        return f"Failed to load image {filename} from blob.", 502
 
 @app.route("/get_text")
 def get_text():
@@ -138,7 +217,7 @@ def upload_csv():
     file = request.files.get("file")
     if not file or not file.filename:
         return "No file provided", 400
-    url = get_blob_url("metadata.csv") #file.filename
+    url = get_blob_url("data.csv") #file.filename
     headers = {
         "x-ms-blob-type": "BlockBlob",
         "Content-Type": "text/csv"
@@ -198,9 +277,9 @@ def find_image_for_name(name: str):
 
 @app.route("/update_metadata_image", methods=["POST"])
 def update_metadata():
-    if not blob_exists("metadata.csv"):
-        return redirect(url_for("index", img_msg=None, meta_msg="error: metadata.csv not found"))
-    rows, err = read_csv_rows("metadata.csv")
+    if not blob_exists("data.csv"):
+        return redirect(url_for("index", img_msg=None, meta_msg="error: data.csv not found"))
+    rows, err = read_csv_rows("data.csv")
     if err or not rows:
         return redirect(url_for("index", meta_msg=f"error: {err or 'empty metadata'}"))
     header = rows[0]
@@ -224,7 +303,7 @@ def update_metadata():
     for r in rows:
         w.writerow([c if c is not None else "" for c in r])
     data = buf.getvalue().encode("utf-8")
-    url = get_blob_url("metadata.csv")
+    url = get_blob_url("data.csv")
     headers = {"x-ms-blob-type": "BlockBlob", "Content-Type": "text/csv"}
     r = requests.put(url, headers=headers, data=data, timeout=30)
     if r.status_code in (201, 202):
@@ -233,9 +312,9 @@ def update_metadata():
 
 @app.route("/metadata_json", methods=["GET"])
 def metadata_json():
-    rows, err = read_csv_rows("metadata.csv")
+    rows, err = read_csv_rows("data.csv")
     if err:
-        return f"Failed to load metadata.csv: {err}", 502
+        return f"Failed to load data.csv: {err}", 502
     return jsonify(rows)
 
 @app.route("/preview", methods=["GET"])
@@ -245,21 +324,25 @@ def preview_default():
 
 @app.route("/simple_query", methods=["POST"])
 def simple_query():
-    if not blob_exists("metadata.csv"):
-        return Response(render_preview("metadata.csv not found"), mimetype="text/html")
+    if not blob_exists("data.csv"):
+        return Response(render_preview("data.csv not found"), mimetype="text/html")
+
     col  = request.form.get("column")
     expr = (request.form.get("expr") or "").strip()
     val  = request.form.get("value") or ""
-    rows, err = read_csv_rows("metadata.csv")
+
+    rows, err = read_csv_rows("data.csv")
     if err or not rows:
         return Response(render_preview("Failed to load metadata."), mimetype="text/html")
+
     header = rows[0]
     if col not in header:
         return Response(render_preview("Invalid column."), mimetype="text/html")
+
     col_idx  = header.index(col)
-    name_idx = header.index("Name") if "Name" in header else 0
     pic_idx  = header.index("Picture") if "Picture" in header else None
 
+    # numeric comparator: >, <, >=, <=, ==, !=
     m = re.match(r"^\s*(>=|<=|==|!=|>|<)\s*(-?\d+(?:\.\d+)?)\s*$", expr) if expr else None
 
     def match(cell):
@@ -277,38 +360,42 @@ def simple_query():
             return s == val
         return False
 
+    # filter rows
     filtered = [header] + [r for r in rows[1:] if col_idx < len(r) and match(r[col_idx])]
     if len(filtered) == 1:
         return Response(render_preview("<div style='padding:8px;'>No matches.</div>"), mimetype="text/html")
+
+    # table
     table_html  = "<table style='width:100%;border-collapse:collapse;'>"
-    table_html += "<thead><tr>" + "".join(f"<th style='border:1px solid #444;padding:4px;'>{h or ''}</th>" for h in header) + "</tr></thead><tbody>"
+    table_html += "<thead><tr>" + "".join(
+        f"<th style='border:1px solid #444;padding:4px;'>{h or ''}</th>" for h in header
+    ) + "</tr></thead><tbody>"
     for r in filtered[1:]:
-        table_html += "<tr>" + "".join(f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in r) + "</tr>"
+        table_html += "<tr>" + "".join(
+            f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in r
+        ) + "</tr>"
     table_html += "</tbody></table>"
+
+    # images: use ONLY Picture column
     images = []
     seen_files = set()
-    for r in filtered[1:]:
-        pic = None
-        if pic_idx is not None and pic_idx < len(r) and r[pic_idx]:
-            candidate = r[pic_idx]
-            if blob_exists(candidate):
-                pic = candidate
-        if not pic:
-            nm = (r[name_idx] or "").strip()
-            if nm:
-                candidate = find_image_for_name(nm)
-                if candidate:
-                    pic = candidate
-        if pic and pic not in seen_files:
-            seen_files.add(pic)
-            images.append(((r[name_idx] or pic), pic))
+    if pic_idx is not None:
+        for r in filtered[1:]:
+            pic = r[pic_idx] if pic_idx < len(r) else None
+            if not pic:
+                continue
+            # If Picture stores blob filenames, verify they exist
+            if pic not in seen_files and blob_exists(pic):
+                seen_files.add(pic)
+                images.append(pic)
+
     imgs_html = ""
     if images:
         imgs_html += "<div style='margin-top:12px'><h4>Pictures</h4>"
         imgs_html += "<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;'>"
-        for label, fname in images:
+        for fname in images:
             src = get_blob_url(fname)
-            cap = label or fname
+            cap = fname  # caption from picture filename (kept simple)
             imgs_html += (
                 "<figure style='margin:0;padding:0;text-align:center;background:#000'>"
                 f"<img src='{src}' alt='{cap}' style='max-width:100%;height:140px;object-fit:contain;display:block;'>"
@@ -316,6 +403,7 @@ def simple_query():
                 "</figure>"
             )
         imgs_html += "</div></div>"
+
     return Response(render_preview(table_html + imgs_html), mimetype="text/html")
 
 
@@ -349,12 +437,12 @@ if (window.parent && window.parent !== window) {
 
 @app.route("/update_cell", methods=["POST"])
 def update_cell():
-    if not blob_exists("metadata.csv"):
-        return Response("metadata.csv not found", mimetype="text/html")
+    if not blob_exists("data.csv"):
+        return Response("data.csv not found", mimetype="text/html")
     column   = request.form.get("column")
     row_key  = (request.form.get("row_key") or "").strip()
     new_val  = request.form.get("new_value", "")
-    rows, err = read_csv_rows("metadata.csv")
+    rows, err = read_csv_rows("data.csv")
     if err or not rows: return Response("Failed to load metadata.", mimetype="text/html")
     header = rows[0]
     if column not in header: return Response("Invalid column.", mimetype="text/html")
@@ -375,7 +463,7 @@ def update_cell():
     for r in rows:
         w.writerow([c if c is not None else "" for c in r])
     data = buf.getvalue().encode("utf-8")
-    url = get_blob_url("metadata.csv")
+    url = get_blob_url("data.csv")
     hdrs = {"x-ms-blob-type": "BlockBlob", "Content-Type": "text/csv"}
     rr = requests.put(url, headers=hdrs, data=data, timeout=30)
     if rr.status_code not in (201, 202):
@@ -386,14 +474,117 @@ def update_cell():
     html += "<tbody><tr>" + "".join(f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in updated_row) + "</tr></tbody></table>"
     return Response(render_preview(html, reload_parent=True), mimetype="text/html")
 
+@app.route("/age_range_query", methods=["POST"])
+def age_range_query():
+    if not blob_exists("data.csv"):
+        return Response(render_preview("data.csv not found"), mimetype="text/html")
+
+    # Read inputs (blank allowed)
+    min_s = (request.form.get("age_min") or "").strip()
+    max_s = (request.form.get("age_max") or "").strip()
+
+    # Require at least one bound
+    if not min_s and not max_s:
+        return Response(render_preview("Provide at least one bound (from/to)."), mimetype="text/html")
+
+    # Parse numeric bounds; allow open range on either side
+    def _to_num(s, default):
+        if s == "":
+            return default
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    min_v = _to_num(min_s, float("-inf"))
+    max_v = _to_num(max_s, float("inf"))
+    if min_v is None or max_v is None:
+        return Response(render_preview("Bounds must be numeric."), mimetype="text/html")
+    if min_v > max_v:
+        return Response(render_preview("Lower bound must be ≤ upper bound."), mimetype="text/html")
+
+    # Read CSV
+    rows, err = read_csv_rows("data.csv")
+    if err or not rows:
+        return Response(render_preview("Failed to load metadata."), mimetype="text/html")
+
+    header = rows[0]
+    # Find "Age" column (case-insensitive)
+    age_idx = None
+    for i, h in enumerate(header):
+        if (h or "").strip().lower() == "age":
+            age_idx = i
+            break
+    if age_idx is None:
+        return Response(render_preview("No 'Age' column found."), mimetype="text/html")
+
+    # Also get Picture column index (case-sensitive to your CSV header)
+    pic_idx = header.index("Picture") if "Picture" in header else None
+
+    # Filter rows by numeric Age, inclusive range
+    kept = [header]
+    for r in rows[1:]:
+        if age_idx < len(r):
+            cell = r[age_idx]
+            try:
+                x = float(cell) if cell not in (None, "") else None
+            except (TypeError, ValueError):
+                x = None
+            if x is not None and (min_v <= x <= max_v):
+                kept.append(r)
+
+    if len(kept) == 1:
+        return Response(render_preview("<div style='padding:8px;'>No matches.</div>"), mimetype="text/html")
+
+    # Build table (matches your existing style)
+    table_html  = "<table style='width:100%;border-collapse:collapse;'>"
+    table_html += "<thead><tr>" + "".join(
+        f"<th style='border:1px solid #444;padding:4px;'>{h or ''}</th>" for h in header
+    ) + "</tr></thead><tbody>"
+    for r in kept[1:]:
+        table_html += "<tr>" + "".join(
+            f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in r
+        ) + "</tr>"
+    table_html += "</tbody></table>"
+
+    # ---- Pictures: use ONLY the Picture column from the filtered set ---- #
+    images = []
+    seen_files = set()
+    if pic_idx is not None:
+        for r in kept[1:]:
+            pic = r[pic_idx] if pic_idx < len(r) else None
+            if not pic:
+                continue
+            if pic not in seen_files and blob_exists(pic):
+                seen_files.add(pic)
+                images.append(pic)
+
+    imgs_html = ""
+    if images:
+        imgs_html += "<div style='margin-top:12px'><h4>Pictures</h4>"
+        imgs_html += "<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;'>"
+        for fname in images:
+            src = get_blob_url(fname)  # assume Picture stores the blob filename
+            cap = fname                # caption from picture filename
+            imgs_html += (
+                "<figure style='margin:0;padding:0;text-align:center;background:#000'>"
+                f"<img src='{src}' alt='{cap}' style='max-width:100%;height:140px;object-fit:contain;display:block;'>"
+                f"<figcaption style='font-size:12px;padding:4px 0'>{cap}</figcaption>"
+                "</figure>"
+            )
+        imgs_html += "</div></div>"
+
+    return Response(render_preview(table_html + imgs_html), mimetype="text/html")
+
+
 @app.route("/delete_row", methods=["POST"])
 def delete_row():
-    if not blob_exists("metadata.csv"):
-        return Response(render_preview("metadata.csv not found"), mimetype="text/html")
+    if not blob_exists("data.csv"):
+        return Response(render_preview("data.csv not found"), mimetype="text/html")
     row_key = (request.form.get("row_key") or "").strip()
     if not row_key:
         return Response(render_preview("no row key provided"), mimetype="text/html")
-    rows, err = read_csv_rows("metadata.csv")
+    rows, err = read_csv_rows("data.csv")
     if err or not rows:
         return Response(render_preview("Failed to load metadata."), mimetype="text/html")
     header = rows[0]
@@ -413,7 +604,7 @@ def delete_row():
     for r in kept:
         w.writerow([c if c is not None else "" for c in r])
     data = buf.getvalue().encode("utf-8")
-    url = get_blob_url("metadata.csv")
+    url = get_blob_url("data.csv")
     hdrs = {"x-ms-blob-type": "BlockBlob", "Content-Type": "text/csv"}
     rr = requests.put(url, headers=hdrs, data=data, timeout=30)
     if rr.status_code not in (201, 202):
@@ -426,12 +617,12 @@ def delete_row():
 
 @app.route("/add_row", methods=["POST"])
 def add_row():
-    if not blob_exists("metadata.csv"):
-        return Response(render_preview("metadata.csv not found"), mimetype="text/html")
+    if not blob_exists("data.csv"):
+        return Response(render_preview("data.csv not found"), mimetype="text/html")
     name = (request.form.get("name") or "").strip()
     if not name:
         return Response(render_preview("no name provided"), mimetype="text/html")
-    rows, err = read_csv_rows("metadata.csv")
+    rows, err = read_csv_rows("data.csv")
     if err or not rows:
         return Response(render_preview("Failed to load metadata."), mimetype="text/html")
     header = rows[0]
@@ -448,7 +639,7 @@ def add_row():
     for r in rows:
         w.writerow([c if c is not None else "" for c in r])
     data = buf.getvalue().encode("utf-8")
-    url = get_blob_url("metadata.csv")
+    url = get_blob_url("data.csv")
     hdrs = {"x-ms-blob-type": "BlockBlob", "Content-Type": "text/csv"}
     rr = requests.put(url, headers=hdrs, data=data, timeout=30)
     if rr.status_code not in (201, 202):
