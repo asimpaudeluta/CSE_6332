@@ -175,7 +175,7 @@
           {% for n in name_options %}
             <option value="{{ n }}">{{ n }}</option>
           {% endfor %}
-        </select>
+        </select> <!-- Names are treated as key index, if replaced with same name causes bugs-->
         <button type="submit"
                 {% if not metadata_exists %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
           Delete
