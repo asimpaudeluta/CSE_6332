@@ -345,7 +345,6 @@ def render_preview(inner_html: str, reload_parent: bool = False) -> str:
     if reload_parent:
         html += """
 <script>
-// Cache a CLEAN version (no reload script), then refresh parent
 try{
   var payload = document.getElementById('payload').innerHTML;
   var clean = "<!doctype html><html><head><meta charset='utf-8'><style>""" + \
@@ -402,6 +401,43 @@ def update_cell():
     html += "<tbody><tr>" + "".join(f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in updated_row) + "</tr></tbody></table>"
     return Response(render_preview(html, reload_parent=True), mimetype="text/html")
 
+@app.route("/delete_row", methods=["POST"])
+def delete_row():
+    if not blob_exists("metadata.csv"):
+        return Response(render_preview("metadata.csv not found"), mimetype="text/html")
+    row_key = (request.form.get("row_key") or "").strip()
+    if not row_key:
+        return Response(render_preview("no row key provided"), mimetype="text/html")
+    rows, err = read_csv_rows("metadata.csv")
+    if err or not rows:
+        return Response(render_preview("Failed to load metadata."), mimetype="text/html")
+    header = rows[0]
+    key_idx = header.index("Name") if "Name" in header else 0
+    deleted_row = None
+    kept = [header]
+    for r in rows[1:]:
+        key = (r[key_idx] or "").strip()
+        if deleted_row is None and key == row_key:
+            deleted_row = list(r)
+            continue
+        kept.append(r)
+    if not deleted_row:
+        return Response(render_preview("Row not found."), mimetype="text/html")
+    buf = io.StringIO(newline="")
+    w = csv.writer(buf)
+    for r in kept:
+        w.writerow([c if c is not None else "" for c in r])
+    data = buf.getvalue().encode("utf-8")
+    url = get_blob_url("metadata.csv")
+    hdrs = {"x-ms-blob-type": "BlockBlob", "Content-Type": "text/csv"}
+    rr = requests.put(url, headers=hdrs, data=data, timeout=30)
+    if rr.status_code not in (201, 202):
+        return Response(render_preview(f"error: HTTP {rr.status_code}"), mimetype="text/html")
+    html = "<div style='padding:8px;'>Deleted row:</div>"
+    html += "<table style='width:100%;border-collapse:collapse;'>"
+    html += "<thead><tr>" + "".join(f"<th style='border:1px solid #444;padding:4px;'>{h or ''}</th>" for h in header) + "</tr></thead>"
+    html += "<tbody><tr>" + "".join(f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in deleted_row) + "</tr></tbody></table>"
+    return Response(render_preview(html, reload_parent=True), mimetype="text/html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

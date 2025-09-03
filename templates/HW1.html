@@ -167,6 +167,21 @@
           Update
         </button>
       </form>
+      <h3 style="margin-top:16px;">Delete Row</h3>
+      <form action="{{ url_for('delete_row') }}" method="post" target="preview">
+        <label>Row (Name/1st col):</label>
+        <select name="row_key" required
+                {% if not metadata_exists %}disabled style="opacity:0.6;cursor:not-allowed;"{% endif %}>
+          {% for n in name_options %}
+            <option value="{{ n }}">{{ n }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit"
+                {% if not metadata_exists %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+          Delete
+        </button>
+      </form>
+
     </section>
   </main>
 </body>
