@@ -439,5 +439,44 @@ def delete_row():
     html += "<tbody><tr>" + "".join(f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in deleted_row) + "</tr></tbody></table>"
     return Response(render_preview(html, reload_parent=True), mimetype="text/html")
 
+@app.route("/add_row", methods=["POST"])
+def add_row():
+    if not blob_exists("metadata.csv"):
+        return Response(render_preview("metadata.csv not found"), mimetype="text/html")
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        return Response(render_preview("no name provided"), mimetype="text/html")
+    rows, err = read_csv_rows("metadata.csv")
+    if err or not rows:
+        return Response(render_preview("Failed to load metadata."), mimetype="text/html")
+    header = rows[0]
+    name_idx = header.index("Name") if "Name" in header else 0
+    for r in rows[1:]:
+        key = (r[name_idx] or "").strip()
+        if key == name:
+            return Response(render_preview(f"error: '{name}' already exists"), mimetype="text/html")
+    new_row = [None] * max(len(header), name_idx + 1)
+    new_row[name_idx] = name
+    rows.append(new_row)
+    buf = io.StringIO(newline="")
+    w = csv.writer(buf)
+    for r in rows:
+        w.writerow([c if c is not None else "" for c in r])
+    data = buf.getvalue().encode("utf-8")
+    url = get_blob_url("metadata.csv")
+    hdrs = {"x-ms-blob-type": "BlockBlob", "Content-Type": "text/csv"}
+    rr = requests.put(url, headers=hdrs, data=data, timeout=30)
+    if rr.status_code not in (201, 202):
+        return Response(render_preview(f"error: HTTP {rr.status_code}"), mimetype="text/html")
+    html = "<div style='padding:8px;'>Added row:</div>"
+    html += "<table style='width:100%;border-collapse:collapse;'>"
+    html += "<thead><tr>" + "".join(
+        f"<th style='border:1px solid #444;padding:4px;'>{h or ''}</th>" for h in header
+    ) + "</tr></thead>"
+    html += "<tbody><tr>" + "".join(
+        f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in new_row
+    ) + "</tr></tbody></table>"
+    return Response(render_preview(html, reload_parent=True), mimetype="text/html")
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
