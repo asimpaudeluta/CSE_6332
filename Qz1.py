@@ -8,7 +8,7 @@ IMAGE_FILE_NAME = "milkyway.jpg"
 CONTAINER_URL = "https://cse6332.blob.core.windows.net/privatecontainer"
 DIRECTORY =  "Qz1"
 SAS_TOKEN = os.getenv("SAS_TOKEN")
-
+# comment made to force azure to recompile
 OPS = {">": operator.gt, "<": operator.lt, ">=": operator.ge, "<=": operator.le, "==": operator.eq, "!=": operator.ne}
 
 if not SAS_TOKEN:
