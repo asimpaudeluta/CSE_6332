@@ -478,16 +478,10 @@ def update_cell():
 def age_range_query():
     if not blob_exists("data.csv"):
         return Response(render_preview("data.csv not found"), mimetype="text/html")
-
-    # Read inputs (blank allowed)
     min_s = (request.form.get("age_min") or "").strip()
     max_s = (request.form.get("age_max") or "").strip()
-
-    # Require at least one bound
     if not min_s and not max_s:
         return Response(render_preview("Provide at least one bound (from/to)."), mimetype="text/html")
-
-    # Parse numeric bounds; allow open range on either side
     def _to_num(s, default):
         if s == "":
             return default
@@ -495,22 +489,16 @@ def age_range_query():
             return float(s)
         except ValueError:
             return None
-
     min_v = _to_num(min_s, float("-inf"))
     max_v = _to_num(max_s, float("inf"))
     if min_v is None or max_v is None:
         return Response(render_preview("Bounds must be numeric."), mimetype="text/html")
     if min_v > max_v:
         return Response(render_preview("Lower bound must be ≤ upper bound."), mimetype="text/html")
-
-    # Read CSV
     rows, err = read_csv_rows("data.csv")
     if err or not rows:
         return Response(render_preview("Failed to load metadata."), mimetype="text/html")
-
     header = rows[0]
-
-    # Find "Age" column (case-insensitive)
     age_idx = None
     for i, h in enumerate(header):
         if (h or "").strip().lower() == "age":
@@ -518,11 +506,7 @@ def age_range_query():
             break
     if age_idx is None:
         return Response(render_preview("No 'Age' column found."), mimetype="text/html")
-
-    # Picture column (case-sensitive to your CSV header)
     pic_idx = header.index("Picture") if "Picture" in header else None
-
-    # Filter rows by numeric Age, inclusive range
     kept = [header]
     for r in rows[1:]:
         if age_idx < len(r):
@@ -533,11 +517,8 @@ def age_range_query():
                 x = None
             if x is not None and (min_v <= x <= max_v):
                 kept.append(r)
-
     if len(kept) == 1:
         return Response(render_preview("<div style='padding:8px;'>No matches.</div>"), mimetype="text/html")
-
-    # Build table (matches your existing style)
     table_html  = "<table style='width:100%;border-collapse:collapse;'>"
     table_html += "<thead><tr>" + "".join(
         f"<th style='border:1px solid #444;padding:4px;'>{h or ''}</th>" for h in header
@@ -547,16 +528,11 @@ def age_range_query():
             f"<td style='border:1px solid #333;padding:4px;'>{(c or '')}</td>" for c in r
         ) + "</tr>"
     table_html += "</tbody></table>"
-
-    # ---- Pictures: show ALL pictures referenced in Picture column (no filtering) ---- #
-    # Supports multiple entries per cell separated by ; , | or whitespace.
     imgs_html = ""
     if pic_idx is not None:
         def is_url(s: str) -> bool:
             s = s.lower()
             return s.startswith("http://") or s.startswith("https://") or s.startswith("data:")
-
-        # Collect image sources in row order, keeping duplicates if present
         img_srcs = []
         for r in kept[1:]:
             if pic_idx < len(r) and r[pic_idx]:
@@ -569,11 +545,9 @@ def age_range_query():
                         continue
                     src = p if is_url(p) else get_blob_url(p)
                     img_srcs.append((p, src))  # (caption base, actual src)
-
         if img_srcs:
             imgs_html += "<div style='margin-top:12px'><h4>Pictures</h4>"
             imgs_html += "<div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;'>"
-            # Render every referenced picture. If one fails to load, show a small error badge.
             for cap_base, src in img_srcs:
                 safe_cap = cap_base
                 imgs_html += (
@@ -590,7 +564,6 @@ def age_range_query():
                     "</figure>"
                 )
             imgs_html += "</div></div>"
-
     return Response(render_preview(table_html + imgs_html), mimetype="text/html")
 
 
