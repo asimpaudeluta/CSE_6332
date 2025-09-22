@@ -287,7 +287,7 @@ def run_prepared_query():
     if qtype == "largest_n":
         sql = f"""
             SELECT place, mag, time FROM Earthquakes
-            WHERE mag IS NOT NULL
+            WHERE mag IS NOT NULL AND mag is Not ''
             ORDER BY mag DESC
             LIMIT {p1 or 5}
         """
