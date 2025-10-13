@@ -7,7 +7,7 @@ app = Flask(__name__)
 TEXT_FILE_NAME = "_placeholder.log"
 IMAGE_FILE_NAME = "mypic.jpg"
 CONTAINER_URL = "https://cse6332.blob.core.windows.net/privatecontainer"
-DIRECTORY =  "Qz2"
+DIRECTORY =  "Qz3"
 SAS_TOKEN = os.getenv("SAS_TOKEN")
 
 if not SAS_TOKEN:
@@ -83,17 +83,17 @@ def read_csv_rows(filename: str = "data.csv"):
 #--- ROUTES ---#
 @app.route("/", methods=["GET"])
 def redirect_root():
-    return redirect(url_for("qz2"))
+    return redirect(url_for("qz3"))
 
-@app.route("/Qz2", methods=["GET"])
-def qz2():
+@app.route("/Qz3", methods=["GET"])
+def qz3():
     last_download_time = None
     if blob_exists("date.txt"):
         date_content = read_text_blob("date.txt")
         if date_content and not date_content.startswith("Failed"):
             last_download_time = date_content.strip()
     return render_template(
-        "Qz2.html",
+        "Qz3.html",
         last_download_time= last_download_time
     )
 
@@ -186,10 +186,10 @@ def get_url_csv_to_blob(force: bool = False) -> bool:
         print(f"Date upload error: {e}")
         return False
 
-@app.route("/Qz2/download", methods=["POST"])
+@app.route("/Qz3/download", methods=["POST"])
 def download_data():
     success = get_url_csv_to_blob(force=True)
-    return redirect(url_for("qz2"))
+    return redirect(url_for("qz3"))
 
 
 def query_data_sqlite_blob(sql_query: str):
@@ -224,7 +224,7 @@ def query_data_sqlite_blob(sql_query: str):
     return results, None
 
 
-@app.route("/Qz2/query", methods=["POST"])
+@app.route("/Qz3/query", methods=["POST"])
 def run_query():
     sql_query = request.form.get("sql_query", "").strip()
     query_results = []
@@ -265,7 +265,7 @@ def run_query():
     # had to repeat this
 
     return render_template(
-        "Qz2.html",
+        "Qz3.html",
         last_download_time=last_download_time,
         query_results=query_results,
         column_names=column_names,
@@ -273,7 +273,7 @@ def run_query():
         last_query=sql_query
     )
 
-@app.route("/Qz2/prepared", methods=["POST"])
+@app.route("/Qz3/prepared", methods=["POST"])
 def run_prepared_query():
     qtype = request.form.get("query_type")
     p1 = request.form.get("param1")
@@ -342,7 +342,7 @@ def run_prepared_query():
         if date_content and not date_content.startswith("Failed"):
             last_download_time = date_content.strip()
 
-    return render_template("Qz2.html",
+    return render_template("Qz3.html",
                            last_download_time=last_download_time,
                            query_results=results,
                            column_names=colnames,
@@ -371,7 +371,7 @@ def get_temp_db_connection():
     except Exception as e:
         return None, None, f"Error accessing DB: {e}"
 
-@app.route("/Qz2/delete_by_net", methods=["POST"])
+@app.route("/Qz3/delete_by_net", methods=["POST"])
 def delete_by_net():
     net_value = request.form.get("net_value", "").strip()
     if not net_value:
@@ -400,7 +400,7 @@ def delete_by_net():
         os.remove(temp_db_path)
     return f"Deleted {count_to_delete} entries with net='{net_value}'. Remaining: {remaining}"
 
-@app.route("/Qz2/insert_row", methods=["POST"])
+@app.route("/Qz3/insert_row", methods=["POST"])
 def insert_row():
     try:
         data = {
@@ -440,7 +440,7 @@ def insert_row():
         os.remove(temp_db_path)
     return f"Row with ID {data['id']} inserted successfully."
 
-@app.route("/Qz2/update_row", methods=["POST"])
+@app.route("/Qz3/update_row", methods=["POST"])
 def update_row():
     target_id = request.form.get("target_id", "").strip()
     target_time = request.form.get("target_time", "").strip()

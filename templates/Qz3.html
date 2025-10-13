@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Quiz 2</title>
+  <title>Quiz 3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='Qz2.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='Qz3.css') }}">
   <script>
   const lastQueryType = "{{ last_query_type or '' }}";
   const lastParams = {
@@ -118,7 +118,7 @@
         <button type="submit">Create SQLite DB</button>
       </form>
 
-      <h5>Qz2: 12, 13</h5>
+      <h5>Qz3: 12, 13</h5>
       <form method="POST" action="{{ url_for('run_prepared_query') }}">
         <label for="query_type"><strong>Select a query:</strong></label>
         <select name="query_type" id="query_type" required onchange="updateParams()">
