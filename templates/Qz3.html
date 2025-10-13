@@ -134,107 +134,70 @@
     }
     </script>
 
-      <h5>Qz3: 12, 13</h5>
-      <form method="POST" action="{{ url_for('run_prepared_query') }}">
-        <label for="query_type"><strong>Select a query:</strong></label>
-        <select name="query_type" id="query_type" required onchange="updateParams()">
-          <option value="">Select a query...</option>
-          <option value="mag_range" {% if last_query_type == 'mag_range' %}selected{% endif %}>12. Quakes within Mag Range</option>
-          <option value="buffer_quakes" {% if last_query_type == 'buffer_quakes' %}selected{% endif %}>13. Quakes within buffer of point</option>
-        </select>
-        <div id="params">
-          <div class="param-group" style="display:none;">
-            <label for="param1" id="label_param1"></label>
-            <input type="text" name="param1" id="param1" value="{{ last_params.param1 if last_params is defined else '' }}">
-          </div>
-          <div class="param-group" style="display:none;">
-            <label for="param2" id="label_param2"></label>
-            <input type="text" name="param2" id="param2" value="{{ last_params.param2 if last_params is defined else '' }}">
-          </div>
-          <div class="param-group" style="display:none;">
-            <label for="param3" id="label_param3"></label>
-            <input type="text" name="param3" id="param3" value="{{ last_params.param3 if last_params is defined else '' }}">
-          </div>
-          <div class="param-group" style="display:none;">
-            <label for="param4" id="label_param4"></label>
-            <input type="text" name="param4" id="param4" value="{{ last_params.param4 if last_params is defined else '' }}">
-          </div>
-          <div class="param-group" style="display:none;">
-            <label for="param5" id="label_param5"></label>
-            <input type="text" name="param5" id="param5" value="{{ last_params.param5 if last_params is defined else '' }}">
-          </div>
-        </div>
-        <button type="submit">Run</button>
-      </form> <!-- This approach ended up being worse (longer) than many functions in flask -->
+<h5>Qz3: 10a, 10b</h5>
+<form method="POST" action="{{ url_for('run_prepared_query') }}">
+  <label for="query_type"><strong>Select a query:</strong></label>
+  <select name="query_type" id="query_type" required onchange="updateParamsQ10()">
+    <option value="">Select a query...</option>
+    <option value="time_range" {% if last_query_type == 'time_range' %}selected{% endif %}>
+      10(a). Quakes within Time Range
+    </option>
+    <option value="start_net_count" {% if last_query_type == 'start_net_count' %}selected{% endif %}>
+      10(b). First C events at a Net starting at Time
+    </option>
+  </select>
 
-      <h5>14. Allow a user to specify a net value on a form, first count the number of occurrences for that value, then delete all of those entries. Show how many entries remain.</h5>
-        <form method="POST" action="{{ url_for('delete_by_net') }}">
-          <label for="net_value">Enter Net value to delete:</label>
-          <input type="text" id="net_value" name="net_value" required>
-          <button type="submit">Delete by Net</button>
-        </form>
-      <h5> 15. Allow a user to create a new tuple with all attributes, check to ensure that the id does not already exist (if it does give an error message)</h5>
-        <form method="POST" action="{{ url_for('insert_row') }}">
-          <label>Time (epoch):</label>
-          <input type="text" name="time" required><br>
+  <div id="params">
+    <div class="param-group" style="display:none;">
+      <label for="param1" id="label_param1"></label>
+      <input type="text" name="param1" id="param1" value="{{ last_params.param1 if last_params is defined else '' }}">
+    </div>
+    <div class="param-group" style="display:none;">
+      <label for="param2" id="label_param2"></label>
+      <input type="text" name="param2" id="param2" value="{{ last_params.param2 if last_params is defined else '' }}">
+    </div>
+    <!-- param3 -->
+    <div class="param-group" style="display:none;">
+      <label for="param3" id="label_param3"></label>
+      <input type="text" name="param3" id="param3" value="{{ last_params.param3 if last_params is defined else '' }}">
+    </div>
+  </div>
 
-          <label>Latitude:</label>
-          <input type="text" name="lat" required><br>
-
-          <label>Longitude:</label>
-          <input type="text" name="long" required><br>
-
-          <label>Magnitude:</label>
-          <input type="text" name="mag" required><br>
-
-          <label>Number of stations (nst):</label>
-          <input type="text" name="nst" required><br>
-
-          <label>Net:</label>
-          <input type="text" name="net" required><br>
-
-          <label>ID (unique):</label>
-          <input type="text" name="id" required><br>
-
-          <button type="submit">Insert Row</button>
-        </form>
-
-      <h5> 16. Allow a user to enter a net id (if it exists) or a time and modify any of the attributes.</h5>
-        <form method="POST" action="{{ url_for('update_row') }}">
-  <p><strong>Identify Row to Update (Provide either ID or Time):</strong></p>
-  <label>ID:</label>
-  <input type="text" name="target_id"><br>
-  <label>OR Time (epoch):</label>
-  <input type="text" name="target_time"><br>
-
-  <p><strong>Fields to Update (leave blank to skip):</strong></p>
-  <label>Latitude:</label>
-  <input type="text" name="lat"><br>
-
-  <label>Longitude:</label>
-  <input type="text" name="long"><br>
-
-  <label>Magnitude:</label>
-  <input type="text" name="mag"><br>
-
-  <label>Number of stations (nst):</label>
-  <input type="text" name="nst"><br>
-
-  <label>Net:</label>
-  <input type="text" name="net"><br>
-
-  <button type="submit">Update Row</button>
+  <button type="submit">Run</button>
 </form>
 
-      {% with messages = get_flashed_messages() %}
-  {% if messages %}
-    <ul style="color: green;">
-      {% for msg in messages %}
-        <li>{{ msg }}</li>
-      {% endfor %}
-    </ul>
-  {% endif %}
-{% endwith %}
+{% if timing_ms is defined %}
+  <p><em>Query time:</em> {{ timing_ms }} ms</p>
+{% endif %}
+
+<script>
+function hideAllQ10() {
+  const groups = document.querySelectorAll("#params .param-group");
+  groups.forEach(g => g.style.display = "none");
+  for (let i=1;i<=3;i++) {
+    document.getElementById('label_param'+i).textContent = "";
+    document.getElementById('param'+i).value = document.getElementById('param'+i).value || "";
+  }
+}
+function updateParamsQ10() {
+  hideAllQ10();
+  const t = document.getElementById("query_type").value;
+  if (t === "time_range") {
+    document.querySelectorAll("#params .param-group")[0].style.display = "block";
+    document.querySelector("#label_param1").textContent = "Min Time (e.g., 18020)";
+    document.querySelectorAll("#params .param-group")[1].style.display = "block";
+    document.querySelector("#label_param2").textContent = "Max Time (e.g., 18060)";
+  } else if (t === "start_net_count") {
+    document.querySelectorAll("#params .param-group")[0].style.display = "block";
+    document.querySelector("#label_param1").textContent = "Start Time (e.g., 15560)";
+    document.querySelectorAll("#params .param-group")[1].style.display = "block";
+    document.querySelector("#label_param2").textContent = "Net (e.g., ak)";
+    document.querySelectorAll("#params .param-group")[2].style.display = "block";
+    document.querySelector("#label_param3").textContent = "Count C (e.g., 3)";
+  }
+}
+document.addEventListener("DOMContentLoaded", updateParamsQ10);
+</script>
     </section>
   </main>
 </body>

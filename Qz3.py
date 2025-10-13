@@ -276,87 +276,75 @@ def run_query():
 
 @app.route("/Qz3/prepared", methods=["POST"])
 def run_prepared_query():
-    qtype = request.form.get("query_type")
-    p1 = request.form.get("param1")
-    p2 = request.form.get("param2")
-    p3 = request.form.get("param3")
-    p4 = request.form.get("param4")
-    p5 = request.form.get("param5")
+    qtype = request.form.get("query_type", "").strip()
+    p1 = (request.form.get("param1") or "").strip()
+    p2 = (request.form.get("param2") or "").strip()
+    p3 = (request.form.get("param3") or "").strip()
 
-    sql = ""
-    error = None
+    query_results = []
+    column_names = []
+    query_error = None
+    timing_ms = None
 
     try:
-        if qtype == "mag_range":
-            mlow = float(p1)
-            mhigh = float(p2)
-            sql = f"""
-                SELECT time, lat, long, id, mag FROM data_tab
-                WHERE mag BETWEEN {mlow} AND {mhigh}
-            """
+        if qtype == "time_range":
+            min_time = int(p1)
+            max_time = int(p2)
 
-        elif qtype == "buffer_quakes":
-            mlow = float(p1)
-            mhigh = float(p2)
-            lat = float(p3)
-            lon = float(p4)
-            n = float(p5)
-            sql = f"""
-                SELECT time, lat, long, id, mag FROM data_tab
-                WHERE mag BETWEEN {mlow} AND {mhigh}
-                  AND lat BETWEEN {lat - n} AND {lat + n}
-                  AND long BETWEEN {lon - n} AND {lon + n}
-            """
+            t0 = time.perf_counter()
+            with get_conn() as conn:
+                cur = conn.cursor()
+                cur.execute(f"""
+                    SELECT [id], [net], [time], [latitude], [longitude]
+                    FROM {TABLE}
+                    WHERE [time] BETWEEN ? AND ?
+                    ORDER BY [time], [id]
+                """, (min_time, max_time))
+                column_names = [d[0] for d in cur.description]
+                query_results = [list(r) for r in cur.fetchall()]
+            timing_ms = round((time.perf_counter() - t0) * 1000.0, 3)
+
+        elif qtype == "start_net_count":
+            start_time = int(p1)
+            net = p2
+            count_c = int(p3)
+
+            t0 = time.perf_counter()
+            with get_conn() as conn:
+                cur = conn.cursor()
+                cur.execute(f"""
+                    SELECT TOP (?)
+                      [id], [net], [time], [latitude], [longitude]
+                    FROM {TABLE}
+                    WHERE [time] >= ? AND [net] = ?
+                    ORDER BY [time], [id]
+                """, (count_c, start_time, net))
+                column_names = [d[0] for d in cur.description]
+                query_results = [list(r) for r in cur.fetchall()]
+            timing_ms = round((time.perf_counter() - t0) * 1000.0, 3)
         else:
-            error = "Invalid query type selected."
-
+            query_error = "Invalid query type selected."
     except ValueError:
-        error = "Invalid input: Please ensure all numeric fields are valid numbers."
-
-    results = []
-    colnames = []
-
-    if not error:
-        results, error = query_data_sqlite_blob(sql)
-
-        # Fetch column names
-        if results and not error:
-            try:
-                blob_url = get_blob_url("data.db")
-                r = requests.get(blob_url, timeout=10)
-                with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
-                    tmpfile.write(r.content)
-                    db_path = tmpfile.name
-                conn = sqlite3.connect(db_path)
-                c = conn.cursor()
-                c.execute(sql)
-                colnames = [desc[0] for desc in c.description]
-                c.close()
-                conn.close()
-                os.remove(db_path)
-            except Exception as e:
-                error = f"Error fetching column names: {e}"
-
+        query_error = "Invalid input: please ensure time/count values are integers."
+    except Exception as e:
+        query_error = f"SQL error: {e}"
     last_download_time = None
     if blob_exists("date.txt"):
         date_content = read_text_blob("date.txt")
         if date_content and not date_content.startswith("Failed"):
             last_download_time = date_content.strip()
 
-    return render_template("Qz3.html",
-                           last_download_time=last_download_time,
-                           query_results=results,
-                           column_names=colnames,
-                           query_error=error,
-                           last_query="",
-                           last_query_type=qtype,
-                           last_params={
-                               "param1": p1,
-                               "param2": p2,
-                               "param3": p3,
-                               "param4": p4,
-                               "param5": p5
-                           })
+    return render_template(
+        "Qz3.html",
+        last_download_time=last_download_time,
+        query_results=query_results,
+        column_names=column_names,
+        query_error=query_error,
+        last_query="",                     # not used for this form
+        last_query_type=qtype,
+        last_params={"param1": p1, "param2": p2, "param3": p3},
+        timing_ms=timing_ms
+    )
 
 def get_temp_db_connection():
     blob_url = get_blob_url("data.db")
