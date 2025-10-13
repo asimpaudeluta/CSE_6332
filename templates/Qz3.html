@@ -86,7 +86,7 @@
             <tr>
               {% for col in column_names %}
               <th>{{ col }}</th>
-              {% endfor g%}
+              {% endfor %}
             </tr>
           </thead>
           <tbody>
@@ -197,6 +197,201 @@ function updateParamsQ10() {
 }
 document.addEventListener("DOMContentLoaded", updateParamsQ10);
 </script>
+
+      <!-- ==== Q11: Repeat 10(a) and 10(b) T times ==== -->
+<section>
+  <h5>Qz3: 11) Repeat Both Queries T Times</h5>
+
+  <div style="display:grid;gap:.5rem;max-width:520px">
+    <label>Times (T)
+      <input id="q11_T" type="number" value="3" min="1" step="1">
+    </label>
+
+    <!-- Inputs for 10(a) -->
+    <fieldset style="border:1px solid #ccc;padding:.75rem">
+      <legend>10(a) — Time Range</legend>
+      <label>Min Time <input id="q11_a_min" type="number" value="18020"></label>
+      <label>Max Time <input id="q11_a_max" type="number" value="18060"></label>
+    </fieldset>
+
+    <!-- Inputs for 10(b) -->
+    <fieldset style="border:1px solid #ccc;padding:.75rem">
+      <legend>10(b) — Start Time + Net + Count</legend>
+      <label>Start Time <input id="q11_b_start" type="number" value="15560"></label>
+      <label>Net <input id="q11_b_net" type="text" value="ak"></label>
+      <label>Count C <input id="q11_b_count" type="number" value="3" min="1" step="1"></label>
+    </fieldset>
+
+    <button onclick="runQ11()">Run 11</button>
+  </div>
+
+  <pre id="q11_out" style="background:#111;color:#eee;padding:1rem;border-radius:8px;white-space:pre-wrap;max-height:380px;overflow:auto"></pre>
+</section>
+
+<script>
+async function runQ11(){
+  const payload = {
+    T: Number(document.getElementById('q11_T').value || 1),
+    q10a: {
+      min_time: Number(document.getElementById('q11_a_min').value),
+      max_time: Number(document.getElementById('q11_a_max').value)
+    },
+    q10b: {
+      start_time: Number(document.getElementById('q11_b_start').value),
+      net: document.getElementById('q11_b_net').value.trim(),
+      count: Number(document.getElementById('q11_b_count').value || 1)
+    }
+  };
+  const r = await fetch("/q11", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const j = await r.json();
+  document.getElementById('q11_out').textContent = JSON.stringify(j, null, 2);
+}
+</script>
+
+<hr>
+
+<!-- ==== Q12: Update by time (modify any attributes) ==== -->
+<section>
+  <h5>Qz3: 12) Update by Time</h5>
+
+  <div style="display:grid;gap:.5rem;max-width:520px">
+    <label>Time (existing row) <input id="q12_time" type="number" value="20160"></label>
+
+    <details>
+      <summary>Attributes to Modify (leave blank to skip)</summary>
+      <div style="display:grid;gap:.4rem;margin-top:.5rem">
+        <label>latitude <input id="q12_lat" type="text" placeholder="e.g., 38.8267"></label>
+        <label>longitude <input id="q12_lon" type="text" placeholder="-122.7693"></label>
+        <label>depth <input id="q12_depth" type="text" placeholder="2.87"></label>
+        <label>mag <input id="q12_mag" type="text" placeholder="1.23"></label>
+        <label>net <input id="q12_net" type="text" placeholder="nc"></label>
+        <label>id <input id="q12_id" type="text" placeholder="(optional)"></label>
+        <label>time <input id="q12_time_new" type="text" placeholder="(optional: change time)"></label>
+      </div>
+    </details>
+
+    <button onclick="runQ12()">Run 12 (Update)</button>
+  </div>
+
+  <pre id="q12_out" style="background:#111;color:#eee;padding:1rem;border-radius:8px;white-space:pre-wrap;max-height:260px;overflow:auto"></pre>
+</section>
+
+<script>
+async function runQ12(){
+  const updates = {};
+  const get = id => document.getElementById(id).value.trim();
+
+  if (get('q12_lat'))  updates.latitude  = get('q12_lat');
+  if (get('q12_lon'))  updates.longitude = get('q12_lon');
+  if (get('q12_depth'))updates.depth     = get('q12_depth');
+  if (get('q12_mag'))  updates.mag       = get('q12_mag');
+  if (get('q12_net'))  updates.net       = get('q12_net');
+  if (get('q12_id'))   updates.id        = get('q12_id');
+  if (get('q12_time_new')) updates.time  = get('q12_time_new');
+
+  const payload = {
+    time: Number(document.getElementById('q12_time').value),
+    updates
+  };
+
+  const r = await fetch("/q12_update", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const j = await r.json();
+  document.getElementById('q12_out').textContent = JSON.stringify(j, null, 2);
+}
+</script>
+
+<hr>
+
+<!-- ==== Q13: Cache (Redis) stats & timed runs ==== -->
+<section>
+  <h5>Qz3: 13) Cache-Backed Queries + Stats</h5>
+
+  <p style="margin:.25rem 0 .5rem">
+    Use the same inputs as Q10/Q11 above. The backend uses Redis caching.
+  </p>
+
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+    <button onclick="runQ10a_cached()">Run 10(a) (cached)</button>
+    <button onclick="runQ10b_cached()">Run 10(b) (cached)</button>
+    <button onclick="runQ11_cached()">Run 11 (cached)</button>
+    <button onclick="refreshCacheStats()">Show Cache Stats</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr;gap:.5rem">
+    <pre id="q13_a_out" style="background:#111;color:#eee;padding:1rem;border-radius:8px;white-space:pre-wrap;max-height:200px;overflow:auto"></pre>
+    <pre id="q13_b_out" style="background:#111;color:#eee;padding:1rem;border-radius:8px;white-space:pre-wrap;max-height:200px;overflow:auto"></pre>
+    <pre id="q13_11_out" style="background:#111;color:#eee;padding:1rem;border-radius:8px;white-space:pre-wrap;max-height:260px;overflow:auto"></pre>
+    <pre id="q13_stats" style="background:#111;color:#eee;padding:1rem;border-radius:8px;white-space:pre-wrap;max-height:220px;overflow:auto"></pre>
+  </div>
+</section>
+
+<script>
+async function runQ10a_cached(){
+  const payload = {
+    min_time: Number(document.getElementById('q11_a_min').value),
+    max_time: Number(document.getElementById('q11_a_max').value)
+  };
+  const r = await fetch("/q10a", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const j = await r.json();
+  document.getElementById('q13_a_out').textContent = JSON.stringify(j, null, 2);
+}
+
+async function runQ10b_cached(){
+  const payload = {
+    start_time: Number(document.getElementById('q11_b_start').value),
+    net: document.getElementById('q11_b_net').value.trim(),
+    count: Number(document.getElementById('q11_b_count').value)
+  };
+  const r = await fetch("/q10b", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const j = await r.json();
+  document.getElementById('q13_b_out').textContent = JSON.stringify(j, null, 2);
+}
+
+async function runQ11_cached(){
+  const payload = {
+    T: Number(document.getElementById('q11_T').value || 1),
+    q10a: {
+      min_time: Number(document.getElementById('q11_a_min').value),
+      max_time: Number(document.getElementById('q11_a_max').value)
+    },
+    q10b: {
+      start_time: Number(document.getElementById('q11_b_start').value),
+      net: document.getElementById('q11_b_net').value.trim(),
+      count: Number(document.getElementById('q11_b_count').value || 1)
+    }
+  };
+  const r = await fetch("/q11", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const j = await r.json();
+  document.getElementById('q13_11_out').textContent = JSON.stringify(j, null, 2);
+}
+
+async function refreshCacheStats(){
+  const r = await fetch("/q13_stats");
+  const j = await r.json();
+  document.getElementById('q13_stats').textContent = JSON.stringify(j, null, 2);
+}
+</script>
+
     </section>
   </main>
 </body>

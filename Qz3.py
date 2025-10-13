@@ -346,136 +346,231 @@ def run_prepared_query():
         timing_ms=timing_ms
     )
 
-def get_temp_db_connection():
-    blob_url = get_blob_url("data.db")
+# --- add these imports near the top if not present ---
+import os, time, json
+import redis
+from flask import request, jsonify
+
+# ---------- Redis setup (env-driven) ----------
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
+REDIS_SSL = os.getenv("REDIS_SSL", "false").lower() == "true"
+REDIS_TTL = int(os.getenv("REDIS_TTL_SECONDS", "120"))
+
+redis_client = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    password=REDIS_PASSWORD,
+    ssl=REDIS_SSL,
+    decode_responses=True,  # store JSON strings
+)
+
+HITS_KEY = "qcache:hits"
+MISSES_KEY = "qcache:misses"
+
+def _cache_key(query_name: str, payload: dict) -> str:
+    return f"qcache:{query_name}:{json.dumps(payload, sort_keys=True)}"
+
+def redis_get(query_name: str, payload: dict):
+    key = _cache_key(query_name, payload)
+    v = redis_client.get(key)
+    if v is not None:
+        redis_client.hincrby(HITS_KEY, query_name, 1)
+        return json.loads(v)
+    redis_client.hincrby(MISSES_KEY, query_name, 1)
+    return None
+
+def redis_set(query_name: str, payload: dict, value: dict):
+    key = _cache_key(query_name, payload)
+    redis_client.set(key, json.dumps(value), ex=REDIS_TTL)
+
+def redis_flush_query_cache():
+    for k in redis_client.scan_iter("qcache:*"):
+        redis_client.delete(k)
+
+def redis_cache_stats():
+    hits = redis_client.hgetall(HITS_KEY) or {}
+    misses = redis_client.hgetall(MISSES_KEY) or {}
+    # count only entry keys (q10a/q10b payloads)
+    entry_count = 0
+    for _ in redis_client.scan_iter("qcache:q10*"):
+        entry_count += 1
+    return {
+        "hits": {k:int(v) for k,v in hits.items()},
+        "misses": {k:int(v) for k,v in misses.items()},
+        "entry_count": entry_count,
+        "ttl_seconds": REDIS_TTL
+    }
+
+# ---------- Query cores used by 10(a), 10(b), 11 ----------
+def q10a_core(min_time: int, max_time: int):
+    """
+    Returns {"columns": [...], "rows": [[...], ...]} and elapsed ms (db time if miss, 0 if cached).
+    """
+    payload = {"min_time": min_time, "max_time": max_time}
+    cached = redis_get("q10a", payload)
+    if cached is not None:
+        return cached, 0.0
+
+    t0 = time.perf_counter()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT [id], [net], [time], [latitude], [longitude]
+            FROM {TABLE}
+            WHERE [time] BETWEEN ? AND ?
+            ORDER BY [time], [id]
+        """, (min_time, max_time))
+        cols = [d[0] for d in cur.description]
+        rows = [list(r) for r in cur.fetchall()]
+        result = {"columns": cols, "rows": rows}
+    dt_ms = (time.perf_counter() - t0) * 1000.0
+    redis_set("q10a", payload, result)
+    return result, dt_ms
+
+def q10b_core(start_time: int, net: str, count_c: int):
+    """
+    Returns {"columns": [...], "rows": [[...], ...]} and elapsed ms (db time if miss, 0 if cached).
+    """
+    payload = {"start_time": start_time, "net": net, "count": count_c}
+    cached = redis_get("q10b", payload)
+    if cached is not None:
+        return cached, 0.0
+
+    t0 = time.perf_counter()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT TOP (?)
+              [id], [net], [time], [latitude], [longitude]
+            FROM {TABLE}
+            WHERE [time] >= ? AND [net] = ?
+            ORDER BY [time], [id]
+        """, (count_c, start_time, net))
+        cols = [d[0] for d in cur.description]
+        rows = [list(r) for r in cur.fetchall()]
+        result = {"columns": cols, "rows": rows}
+    dt_ms = (time.perf_counter() - t0) * 1000.0
+    redis_set("q10b", payload, result)
+    return result, dt_ms
+
+# ---------- Routes used by your HTML ----------
+
+# 10(a) — time range (cached)
+@app.route("/q10a", methods=["POST"])
+def r10a():
+    j = request.get_json(force=True, silent=True) or {}
+    tmin = int(j.get("min_time"))
+    tmax = int(j.get("max_time"))
+    t0 = time.perf_counter()
+    result, db_or_cache_ms = q10a_core(tmin, tmax)
+    total_ms = (time.perf_counter() - t0) * 1000.0
+    return jsonify({
+        "result": result,
+        "timing_ms": {
+            "db_or_cache_ms": round(db_or_cache_ms, 3),
+            "total_ms": round(total_ms, 3)
+        }
+    })
+
+# 10(b) — start time + net + count C (cached)
+@app.route("/q10b", methods=["POST"])
+def r10b():
+    j = request.get_json(force=True, silent=True) or {}
+    start_t = int(j.get("start_time"))
+    net = str(j.get("net"))
+    C = int(j.get("count"))
+    t0 = time.perf_counter()
+    result, db_or_cache_ms = q10b_core(start_t, net, C)
+    total_ms = (time.perf_counter() - t0) * 1000.0
+    return jsonify({
+        "result": result,
+        "timing_ms": {
+            "db_or_cache_ms": round(db_or_cache_ms, 3),
+            "total_ms": round(total_ms, 3)
+        }
+    })
+
+# 11 — repeat both queries T times, return per-iteration times and total (cached layer is active)
+@app.route("/q11", methods=["POST"])
+def r11():
+    j = request.get_json(force=True, silent=True) or {}
+    T = int(j.get("T", 1))
+    a = j.get("q10a", {})
+    b = j.get("q10b", {})
+    a_times, b_times = [], []
+    a_results, b_results = [], []
+    total_t0 = time.perf_counter()
+
+    for _ in range(T):
+        t0 = time.perf_counter()
+        res_a, _ = q10a_core(int(a["min_time"]), int(a["max_time"]))
+        a_times.append(round((time.perf_counter() - t0) * 1000.0, 3))
+        a_results.append(res_a)
+
+        t0 = time.perf_counter()
+        res_b, _ = q10b_core(int(b["start_time"]), str(b["net"]), int(b["count"]))
+        b_times.append(round((time.perf_counter() - t0) * 1000.0, 3))
+        b_results.append(res_b)
+
+    total_ms = (time.perf_counter() - total_t0) * 1000.0
+    return jsonify({
+        "q10a_times_ms": a_times,
+        "q10b_times_ms": b_times,
+        "total_time_ms": round(total_ms, 3),
+        "last_q10a_result": a_results[-1] if a_results else None,
+        "last_q10b_result": b_results[-1] if b_results else None
+    })
+
+# 12 — update by time (invalidate cache after change)
+@app.route("/q12_update", methods=["POST"])
+def r12_update():
+    """
+    body: {"time": 20160, "updates": {"mag": 1.23, "net": "nc"}}
+    """
+    j = request.get_json(force=True, silent=True) or {}
+    time_value = int(j.get("time"))
+    updates = j.get("updates", {}) or {}
+
+    # numeric coercion where appropriate
+    for k in ("latitude", "longitude", "depth", "mag"):
+        if k in updates and updates[k] is not None and updates[k] != "":
+            updates[k] = float(updates[k])
+    if "time" in updates and updates["time"] not in (None, ""):
+        updates["time"] = int(updates["time"])
+
+    # perform update
+    changed = 0
     try:
-        r = requests.get(blob_url, timeout=10)
-        if not r.ok:
-            return None, None, f"Failed to download DB blob. HTTP {r.status_code}"
-        with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
-            tmpfile.write(r.content)
-            temp_db_path = tmpfile.name
-        conn = sqlite3.connect(temp_db_path)
-        return conn, temp_db_path, None
+        allowed = {"latitude","longitude","depth","mag","net","id","time"}
+        sets, params = [], []
+        for k, v in updates.items():
+            if k in allowed:
+                sets.append(f"[{k}] = ?")
+                params.append(v)
+        if sets:
+            params.append(time_value)
+            with get_conn() as conn:
+                cur = conn.cursor()
+                cur.execute(f"UPDATE {TABLE} SET {', '.join(sets)} WHERE [time] = ?", params)
+                changed = cur.rowcount
+                conn.commit()
     except Exception as e:
-        return None, None, f"Error accessing DB: {e}"
+        return jsonify({"updated_rows": 0, "error": str(e)}), 500
 
-@app.route("/Qz3/delete_by_net", methods=["POST"])
-def delete_by_net():
-    net_value = request.form.get("net_value", "").strip()
-    if not net_value:
-        return "Net value is required", 400
-    conn, temp_db_path, error = get_temp_db_connection()
-    if error:
-        return error, 500
+    # invalidate cache after mutation
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM data_tab WHERE net = ?", (net_value,))
-        count_to_delete = cur.fetchone()[0]
-        cur.execute("DELETE FROM data_tab WHERE net = ?", (net_value,))
-        conn.commit()
-        cur.execute("SELECT COUNT(*) FROM data_tab")
-        remaining = cur.fetchone()[0]
-        conn.close()
-        with open(temp_db_path, "rb") as f:
-            db_bytes = f.read()
-        upload_url = get_blob_url("data.db")
-        headers = {
-            "x-ms-blob-type": "BlockBlob",
-            "Content-Type": "application/octet-stream",
-        }
-        requests.put(upload_url, headers=headers, data=db_bytes, timeout=10)
-    finally:
-        os.remove(temp_db_path)
-    return f"Deleted {count_to_delete} entries with net='{net_value}'. Remaining: {remaining}"
+        redis_flush_query_cache()
+    except Exception:
+        pass
 
-@app.route("/Qz3/insert_row", methods=["POST"])
-def insert_row():
-    try:
-        data = {
-            "time": int(request.form.get("time")),
-            "lat": float(request.form.get("lat")),
-            "long": float(request.form.get("long")),
-            "mag": float(request.form.get("mag")),
-            "nst": int(request.form.get("nst")),
-            "net": request.form.get("net"),
-            "id": request.form.get("id")
-        }
-    except (ValueError, TypeError):
-        return "Invalid input. Please enter proper types.", 400
-    conn, temp_db_path, error = get_temp_db_connection()
-    if error:
-        return error, 500
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM data_tab WHERE id = ?", (data["id"],))
-        if cur.fetchone()[0] > 0:
-            return f"Row with ID {data['id']} already exists.", 400
-        cur.execute("""
-            INSERT INTO data_tab (time, lat, long, mag, nst, net, id)
-            VALUES (:time, :lat, :long, :mag, :nst, :net, :id)
-        """, data)
-        conn.commit()
-        conn.close()
-        with open(temp_db_path, "rb") as f:
-            db_bytes = f.read()
-        upload_url = get_blob_url("data.db")
-        headers = {
-            "x-ms-blob-type": "BlockBlob",
-            "Content-Type": "application/octet-stream",
-        }
-        requests.put(upload_url, headers=headers, data=db_bytes, timeout=10)
-    finally:
-        os.remove(temp_db_path)
-    return f"Row with ID {data['id']} inserted successfully."
+    return jsonify({"updated_rows": changed})
 
-@app.route("/Qz3/update_row", methods=["POST"])
-def update_row():
-    target_id = request.form.get("target_id", "").strip()
-    target_time = request.form.get("target_time", "").strip()
-    updates = {}
-    for field in ["lat", "long", "mag", "nst", "net"]:
-        val = request.form.get(field)
-        if val:
-            updates[field] = val
-    if not updates:
-        return "No fields provided to update.", 400
-    where_clause = ""
-    where_value = None
-    if target_id:
-        where_clause = "id = ?"
-        where_value = target_id
-    elif target_time:
-        try:
-            where_clause = "time = ?"
-            where_value = int(target_time)
-        except ValueError:
-            return "Invalid time format.", 400
-    else:
-        return "Provide either ID or time to update.", 400
-    set_clause = ", ".join([f"{k} = ?" for k in updates])
-    params = list(updates.values()) + [where_value]
-    conn, temp_db_path, error = get_temp_db_connection()
-    if error:
-        return error, 500
-    try:
-        cur = conn.cursor()
-        cur.execute(f"UPDATE data_tab SET {set_clause} WHERE {where_clause}", params)
-        updated = cur.rowcount
-        conn.commit()
-        conn.close()
-        with open(temp_db_path, "rb") as f:
-            db_bytes = f.read()
-        upload_url = get_blob_url("data.db")
-        headers = {
-            "x-ms-blob-type": "BlockBlob",
-            "Content-Type": "application/octet-stream",
-        }
-        requests.put(upload_url, headers=headers, data=db_bytes, timeout=10)
-    finally:
-        os.remove(temp_db_path)
-    return f"Updated {updated} row(s)."
-
+# 13 — cache stats
+@app.route("/q13_stats", methods=["GET"])
+def r13_stats():
+    return jsonify(redis_cache_stats())
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
