@@ -78,7 +78,6 @@
 <body>
   <main class="container">
     <section class="left">
-      <img src="{{ url_for('get_image') }}" alt="User Image" style="max-width: 100%; height: auto; border: 1px solid #ccc; padding: 5px;">
       <h1>Asim Paudel (1002122407)</h1>
       <h3>Query Preview</h3>
       {% if query_results %}
@@ -87,7 +86,7 @@
             <tr>
               {% for col in column_names %}
               <th>{{ col }}</th>
-              {% endfor %}
+              {% endfor g%}
             </tr>
           </thead>
           <tbody>
