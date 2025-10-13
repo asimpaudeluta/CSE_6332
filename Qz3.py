@@ -1,6 +1,8 @@
 import os, json, mimetypes, csv, io, requests, sqlite3, tempfile
 from flask import Flask, request, Response, render_template, redirect, jsonify, url_for
 import re, operator
+import pandas as pd
+import pyodbc
 from datetime import datetime
 app = Flask(__name__)
 
@@ -97,100 +99,100 @@ def qz3():
         last_download_time= last_download_time
     )
 
-def get_url_csv_to_blob(force: bool = False) -> bool:
-    source_blob_name = "data-1.csv"
-    db_blob_name = "data.db"
+import time
 
-    if not force and blob_exists(db_blob_name):
-        return True
+AZURE_SQL_SERVER = os.getenv("AZURE_SQL_SERVER", "querytest-server.database.windows.net")
+AZURE_SQL_DATABASE = os.getenv("AZURE_SQL_DATABASE", "querytest-database")
+AZURE_SQL_USER = os.getenv("AZURE_SQL_USER", "querytest-server-admin@querytest-server")
+AZURE_SQL_PASSWORD = os.getenv("AZURE_SQL_PASSWORD", "sevpwA.P2#")
+AZURE_SQL_ENCRYPT = os.getenv("AZURE_SQL_ENCRYPT", "yes")          # yes/no
+AZURE_SQL_TRUST_CERT = os.getenv("AZURE_SQL_TRUST_CERT", "no")     # no/yes
+AZURE_SQL_TIMEOUT = int(os.getenv("AZURE_SQL_TIMEOUT", "30"))
 
+ODBC_CONN_STR = (
+    "DRIVER={ODBC Driver 18 for SQL Server};"
+    f"SERVER=tcp:{AZURE_SQL_SERVER},1433;"
+    f"DATABASE={AZURE_SQL_DATABASE};"
+    f"UID={AZURE_SQL_USER};PWD={AZURE_SQL_PASSWORD};"
+    f"Encrypt={AZURE_SQL_ENCRYPT};TrustServerCertificate={AZURE_SQL_TRUST_CERT};"
+    f"Connection Timeout={AZURE_SQL_TIMEOUT};"
+)
+
+def get_conn():
+    return pyodbc.connect(ODBC_CONN_STR, autocommit=False)
+
+def redis_flush_query_cache():
+    return
+
+TABLE = "dbo.quakes"
+DDL_CREATE = f"""
+CREATE TABLE {TABLE}(
+    [time]      INT           NOT NULL,
+    [latitude]  FLOAT         NULL,
+    [longitude] FLOAT         NULL,
+    [depth]     FLOAT         NULL,
+    [mag]       FLOAT         NULL,
+    [net]       NVARCHAR(16)  NULL,
+    [id]        NVARCHAR(64)  NOT NULL PRIMARY KEY
+);
+"""
+DDL_INDEXES = [
+    f"CREATE INDEX IX_quakes_time ON {TABLE}([time]);",
+    f"CREATE INDEX IX_quakes_net_time ON {TABLE}([net],[time]);"
+]
+def reset_and_load_csv_from_blob(blob_name: str = "dataset.csv") -> dict:
+    t0 = time.perf_counter()
+    r = requests.get(get_blob_url(blob_name), timeout=60)
+    if not r.ok:
+        return {"ok": False, "msg": f"CSV download failed: HTTP {r.status_code}"}
     try:
-        csv_url = get_blob_url(source_blob_name)
-        response = requests.get(csv_url, timeout=15)
-        if not response.ok:
-            print(f"Failed to download CSV blob: HTTP {response.status_code}")
-            return False
-        csv_data = response.content
-    except requests.RequestException as e:
-        print(f"CSV blob download error: {e}")
-        return False
-
-    conn = sqlite3.connect(":memory:")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE data_tab (
-            time INTEGER,
-            lat REAL,
-            long REAL,
-            mag REAL,
-            nst INTEGER,
-            net TEXT,
-            id TEXT PRIMARY KEY
-        )
-    """)
-    try:
-        csv_text = csv_data.decode("utf-8")
-        reader = csv.DictReader(io.StringIO(csv_text))
-        for row in reader:
-            values = [row.get(col) for col in reader.fieldnames]
-            placeholders = ",".join("?" * len(values))
-            cursor.execute(f"INSERT OR IGNORE INTO data_tab VALUES ({placeholders})", values)
-        conn.commit()
+        df = pd.read_csv(io.StringIO(r.text))
     except Exception as e:
-        print(f"CSV parsing or DB insert error: {e}")
-        conn.close()
-        return False
-
-    # --- Step 4: Save SQLite DB to file and upload it ---
-    with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
-        temp_db_path = tmpfile.name
+        return {"ok": False, "msg": f"CSV parse error: {e}"}
+    need = ["time", "latitude", "longitude", "depth", "mag", "net", "id"]
+    missing = [c for c in need if c not in df.columns]
+    if missing:
+        return {"ok": False, "msg": f"CSV missing columns: {missing}"}
     try:
-        disk_conn = sqlite3.connect(temp_db_path)
-        conn.backup(disk_conn)
-        disk_conn.close()
-        with open(temp_db_path, "rb") as f:
-            db_bytes = f.read()
-    finally:
-        os.remove(temp_db_path)
-        conn.close()
+        df = df.astype({
+            "time": "int64",
+            "latitude": "float64",
+            "longitude": "float64",
+            "depth": "float64",
+            "mag": "float64",
+            "net": "string",
+            "id": "string"
+        })
+    except Exception:
+        pass
 
-    db_url = get_blob_url(db_blob_name)
-    db_headers = {
-        "x-ms-blob-type": "BlockBlob",
-        "Content-Type": "application/octet-stream",
-    }
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(f"IF OBJECT_ID(N'{TABLE}', N'U') IS NOT NULL DROP TABLE {TABLE};")
+        cur.execute(DDL_CREATE)
+        cur.fast_executemany = True
+        rows = df[need].itertuples(index=False, name=None)
+        batch = list(rows)
+        if batch:
+            cur.executemany(
+                f"INSERT INTO {TABLE}([time],latitude,longitude,depth,mag,[net],[id]) VALUES (?,?,?,?,?,?,?)",
+                batch
+            )
+        for sql in DDL_INDEXES:
+            cur.execute(sql)
+        conn.commit()
+    elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 3)
+    return {"ok": True, "msg": "Reset & load complete", "rows_inserted": len(batch), "elapsed_ms": elapsed_ms}
+
+@app.route("/load_dataset_reset", methods=["POST"])
+def load_dataset_reset():
+    blob_name = (request.json or {}).get("blob_name", "dataset.csv")
+    result = reset_and_load_csv_from_blob(blob_name)
     try:
-        r = requests.put(db_url, headers=db_headers, data=db_bytes, timeout=10)
-        if r.status_code not in (201, 202):
-            print(f"DB upload failed: HTTP {r.status_code}")
-            return False
-    except requests.RequestException as e:
-        print(f"DB upload error: {e}")
-        return False
-
-    # --- Step 5: Upload current date as date.txt ---
-    date_str = datetime.now().strftime("%m-%d-%Y")
-    date_blob_url = get_blob_url("date.txt")
-    date_headers = {
-        "x-ms-blob-type": "BlockBlob",
-        "Content-Type": "text/plain; charset=utf-8",
-    }
-    try:
-        r = requests.put(date_blob_url, headers=date_headers, data=date_str.encode("utf-8"), timeout=10)
-        if r.status_code in (201, 202):
-            return True
-        else:
-            print(f"Date upload failed: HTTP {r.status_code}")
-            return False
-    except requests.RequestException as e:
-        print(f"Date upload error: {e}")
-        return False
-
-@app.route("/Qz3/download", methods=["POST"])
-def download_data():
-    success = get_url_csv_to_blob(force=True)
-    return redirect(url_for("qz3"))
-
+        redis_flush_query_cache()
+    except Exception:
+        pass
+    return jsonify(result), (200 if result.get("ok") else 400)
 
 def query_data_sqlite_blob(sql_query: str):
     blob_name = "data.db"
@@ -222,7 +224,6 @@ def query_data_sqlite_blob(sql_query: str):
         except Exception as e:
             print(f"Warning: Failed to delete temp file: {e}")
     return results, None
-
 
 @app.route("/Qz3/query", methods=["POST"])
 def run_query():

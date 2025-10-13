@@ -108,15 +108,31 @@
     </section>
 
     <section class="right">
-      <h2>Convert data-1.csv to SQLite DB</h2>
-        <p>
-          <strong>Last updated:</strong>
-            {{ last_download_time if last_download_time else "Not available" }}
-        </p>
+      <h2>Load dataset.csv to Azure SQL (reset table)</h2>
+      <p>
+        <strong>Note:</strong> This will DROP and recreate <code>dbo.quakes</code>, then load rows from your blob: <code>{{ dir }}/dataset.csv</code>.
+      </p>
 
-      <form id="download_data" method="POST" action="{{ url_for('download_data') }}">
-        <button type="submit">Create SQLite DB</button>
+      <form onsubmit="event.preventDefault(); resetAndLoad();">
+        <label>CSV Blob Name:</label>
+        <input id="blob_name" value="dataset.csv">
+        <button type="submit">Reset & Load</button>
       </form>
+
+      <pre id="reset_load_out" style="background:#111;color:#eee;padding:1rem;border-radius:8px;white-space:pre-wrap;"></pre>
+
+    <script>
+    async function resetAndLoad(){
+      const blobName = document.getElementById('blob_name').value.trim() || 'dataset.csv';
+      const r = await fetch("/load_dataset_reset", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ blob_name: blobName })
+      });
+      const j = await r.json();
+      document.getElementById('reset_load_out').textContent = JSON.stringify(j, null, 2);
+    }
+    </script>
 
       <h5>Qz3: 12, 13</h5>
       <form method="POST" action="{{ url_for('run_prepared_query') }}">
