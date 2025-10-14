@@ -392,7 +392,6 @@ def redis_flush_query_cache():
 def redis_cache_stats():
     hits = redis_client.hgetall(HITS_KEY) or {}
     misses = redis_client.hgetall(MISSES_KEY) or {}
-    # count only entry keys (q10a/q10b payloads)
     entry_count = 0
     for _ in redis_client.scan_iter("qcache:q10*"):
         entry_count += 1
@@ -403,11 +402,7 @@ def redis_cache_stats():
         "ttl_seconds": REDIS_TTL
     }
 
-# ---------- Query cores used by 10(a), 10(b), 11 ----------
 def q10a_core(min_time: int, max_time: int):
-    """
-    Returns {"columns": [...], "rows": [[...], ...]} and elapsed ms (db time if miss, 0 if cached).
-    """
     payload = {"min_time": min_time, "max_time": max_time}
     cached = redis_get("q10a", payload)
     if cached is not None:
@@ -430,9 +425,6 @@ def q10a_core(min_time: int, max_time: int):
     return result, dt_ms
 
 def q10b_core(start_time: int, net: str, count_c: int):
-    """
-    Returns {"columns": [...], "rows": [[...], ...]} and elapsed ms (db time if miss, 0 if cached).
-    """
     payload = {"start_time": start_time, "net": net, "count": count_c}
     cached = redis_get("q10b", payload)
     if cached is not None:
@@ -455,9 +447,6 @@ def q10b_core(start_time: int, net: str, count_c: int):
     redis_set("q10b", payload, result)
     return result, dt_ms
 
-# ---------- Routes used by your HTML ----------
-
-# 10(a) — time range (cached)
 @app.route("/q10a", methods=["POST"])
 def r10a():
     j = request.get_json(force=True, silent=True) or {}
@@ -474,7 +463,6 @@ def r10a():
         }
     })
 
-# 10(b) — start time + net + count C (cached)
 @app.route("/q10b", methods=["POST"])
 def r10b():
     j = request.get_json(force=True, silent=True) or {}
@@ -492,7 +480,6 @@ def r10b():
         }
     })
 
-# 11 — repeat both queries T times, return per-iteration times and total (cached layer is active)
 @app.route("/q11", methods=["POST"])
 def r11():
     j = request.get_json(force=True, silent=True) or {}
@@ -523,24 +510,16 @@ def r11():
         "last_q10b_result": b_results[-1] if b_results else None
     })
 
-# 12 — update by time (invalidate cache after change)
 @app.route("/q12_update", methods=["POST"])
 def r12_update():
-    """
-    body: {"time": 20160, "updates": {"mag": 1.23, "net": "nc"}}
-    """
     j = request.get_json(force=True, silent=True) or {}
     time_value = int(j.get("time"))
     updates = j.get("updates", {}) or {}
-
-    # numeric coercion where appropriate
     for k in ("latitude", "longitude", "depth", "mag"):
         if k in updates and updates[k] is not None and updates[k] != "":
             updates[k] = float(updates[k])
     if "time" in updates and updates["time"] not in (None, ""):
         updates["time"] = int(updates["time"])
-
-    # perform update
     changed = 0
     try:
         allowed = {"latitude","longitude","depth","mag","net","id","time"}
@@ -558,8 +537,6 @@ def r12_update():
                 conn.commit()
     except Exception as e:
         return jsonify({"updated_rows": 0, "error": str(e)}), 500
-
-    # invalidate cache after mutation
     try:
         redis_flush_query_cache()
     except Exception:
@@ -567,7 +544,6 @@ def r12_update():
 
     return jsonify({"updated_rows": changed})
 
-# 13 — cache stats
 @app.route("/q13_stats", methods=["GET"])
 def r13_stats():
     return jsonify(redis_cache_stats())
