@@ -16,11 +16,6 @@
   <main class="container">
     <section class="left">
       <div class="left-top">
-    <!--      <img src="{{ url_for('get_image') }}" alt="Milky Way">-->
-
-    <!-- Raw Metadata -->
-    <!--      <pre id="text-content">{{ content | e }}</pre>-->
-    <!-- JSON to Table Metadata -->
         {% if metadata_exists and metadata_rows %}
           <h2>Metadata</h2>
           <table>
@@ -54,10 +49,6 @@
 
     <section class="right">
       <h2> Raw Data Upload</h2>
-      <!--      <form action="{{ url_for('upload_csv') }}" method="post" enctype="multipart/form-data">-->
-<!--        <input type="file" name="file" accept=".csv">-->
-<!--        <button type="submit">Upload CSV</button>-->
-<!--      </form>-->
       <form id="upload-form" action="{{ url_for('upload_csv') }}" method="post" enctype="multipart/form-data">
         <input id="file" type="file" name="file" accept=".csv" style="display:none;"
                onchange="document.getElementById('upload-form').submit()">
@@ -69,7 +60,6 @@
           {% endif %}
         </button>
       </form>
-
       <form action="{{ url_for('update_metadata') }}" method="post" style="margin:12px 0;">
         <button type="submit"
                 {% if not metadata_exists %}disabled title="Upload metadata.csv first" style="opacity:0.5;cursor:not-allowed;"{% endif %}>
@@ -79,7 +69,6 @@
           <span class="status" style="margin-left:8px;">{{ meta_msg }}</span>
         {% endif %}
       </form>
-
       <form id="upload-image-form" action="{{ url_for('upload_image') }}" method="post" enctype="multipart/form-data" style="margin-top:12px;">
         <label for="name-select">Name:</label>
         <select id="name-select" name="name" required

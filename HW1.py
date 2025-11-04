@@ -1,6 +1,9 @@
 import os, json, mimetypes, csv, io, requests
 from flask import Flask, request, Response, render_template, redirect, jsonify, url_for
 import re, operator
+
+from app import get_session_vals
+
 app = Flask(__name__)
 
 TEXT_FILE_NAME = "_placeholder.log"
@@ -134,11 +137,13 @@ def get_text():
     return Response(text, mimetype="text/plain; charset=utf-8", status=status)
 
 @app.route("/upload_csv", methods=["POST"])
-def upload_csv():
+def upload_csv(filename:str = None):
+    if filename is None:
+        filename = get_session_vals()["csv_path"]
     file = request.files.get("file")
     if not file or not file.filename:
         return "No file provided", 400
-    url = get_blob_url("metadata.csv") #file.filename
+    url = get_blob_url(filename) #file.filename
     headers = {
         "x-ms-blob-type": "BlockBlob",
         "Content-Type": "text/csv"

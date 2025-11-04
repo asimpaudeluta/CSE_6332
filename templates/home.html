@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Home</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid;
+    place-items: center;        /* centers the whole block vertically & horizontally */
+    font-family: system-ui, Arial, sans-serif;
+  }
+
+  .wrap {
+    display: grid;
+    gap: 1rem;                  /* space between the three rows */
+    text-align: center;
+  }
+
+  .row.links {
+    display: flex;
+    flex-wrap: wrap;            /* allow wrapping on small screens */
+    justify-content: center;
+    gap: .75rem 1rem;           /* row/column gap between links */
+  }
+
+  a { text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Row 1 -->
+    <div class="row">
+      <strong>Asim Paudel (1002122407)</strong>
+    </div>
+
+    <!-- Row 2 -->
+    <div class="row links">
+      <a href="/Cw1">CW1</a>
+      <a href="/Hw1">HW1</a>
+      <a href="/Qz1">Qz1</a>
+      <a href="/Hw2">HW2</a>
+      <a href="/Qz2">Qz2</a>
+      <a href="/hw3">HW3</a>
+      <a href="/Qz3">Qz3</a>
+      <a href="/hw4">HW4</a>
+      <a href="/Qz4">Qz4</a>
+    </div>
+
+    <!-- Row 3 -->
+    <div class="row">
+      <a href="/Code">Code</a>
+    </div>
+  </div>
+</body>
+</html>

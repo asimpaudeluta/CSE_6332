@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quiz 4</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ url_for('static', filename='Qz3.css') }}">
+<style>
+textarea {width:100%;min-height:120px;background:#111;color:#eee;border:1px solid #555;padding:8px;border-radius:6px;}
+pre {background:#111;color:#eee;padding:1rem;border-radius:8px;white-space:pre-wrap;max-height:300px;overflow:auto;}
+label{display:block;margin-top:.4rem}
+fieldset{border:1px solid #666;border-radius:8px;padding:.75rem;margin-top:1rem}
+button{margin-top:.5rem}
+</style>
+<script>
+async function run10(){
+ const payload={
+   S:document.getElementById("q10_S").value,
+   T:document.getElementById("q10_T").value,
+   C:document.getElementById("q10_C").value
+ };
+ const r=await fetch("/Qz4/q10",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+ const j=await r.json();document.getElementById("q10_out").textContent=JSON.stringify(j,null,2);
+}
+async function run11(){
+ const payload={
+   S:document.getElementById("q11_S").value,
+   T:document.getElementById("q11_T").value
+ };
+ const r=await fetch("/Qz4/q11",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+ const j=await r.json();document.getElementById("q11_out").textContent=JSON.stringify(j,null,2);
+}
+async function run12(){
+ const payload={
+   P:document.getElementById("q12_P").value.split(",").map(x=>x.trim()).filter(x=>x),
+   T:document.getElementById("q12_T").value,
+   S:document.getElementById("q12_S").value
+ };
+ const r=await fetch("/Qz4/q12",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+ const j=await r.json();document.getElementById("q12_out").textContent=JSON.stringify(j,null,2);
+}
+</script>
+</head>
+<body>
+<main class="container">
+<section class="left">
+<h1>Asim Paudel (1002122407)</h1>
+<h3>Quiz 4 — Text Processing</h3>
+
+<fieldset>
+<legend>10 — Character Counting & Replacement</legend>
+<label>S (string: <input id="q10_S" value="My name is Asim"></label>
+<label>10 a) T:</label><textarea id="q10_T">Asim is nice</textarea>
+<label>C (replacement char): <input id="q10_C" value="*"></label>
+<button onclick="run10()">Run 10</button>
+<pre id="q10_out"></pre>
+</fieldset>
+
+<fieldset>
+<legend>11 — Word Counting and Word Lists by Initial</legend>
+<label>S (string): <input id="q11_S" value="Hi;my name is Asim."></label>
+<label>11 a and b) T:</label><textarea id="q11_T">Asim is_nice.</textarea>
+<button onclick="run11()">Run 11</button>
+<pre id="q11_out"></pre>
+</fieldset>
+
+<fieldset>
+<legend>12 — Stop Word Removal + Bonus Bigrams</legend>
+<label>Stop Words P (comma separated, ≤10): <input id="q12_P" value="and,by,a,is,he,the,or"></label>
+<label>S (string): <input id="q12_S" value="AB"></label>
+<label>Text T:</label><textarea id="q12_T">This guy or the Engineer Asim is he a graduate?</textarea>
+<button onclick="run12()">Run 12 (+ Bonus)</button>
+<pre id="q12_out"></pre>
+</fieldset>
+</section>
+</main>
+</body>
+</html>
