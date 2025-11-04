@@ -15,5 +15,3 @@ services:
         value: production
       - key: PORT
         value: 5000
-
-staticPublishPath: static
