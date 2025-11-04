@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 @app.route("/Qz4", methods=["GET"])
 def qz4_home():
-    return render_template("qz4.html")
+    return render_template("Qz4.html")
 
 @app.route("/Qz4/q10", methods=["POST"])
 def q10():
