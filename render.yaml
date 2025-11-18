@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: qz5-flask-app
+    name: qz4-flask-app
     env: python
     plan: free
     region: oregon
