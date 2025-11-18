@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quiz 5 — Data Visualization</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- <link rel="stylesheet" href="{{ url_for('static', filename='Qz3.css') }}"> -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <style>
+    body {
+      background: #111;
+      color: #eee;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    main.container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 3rem;
+    }
+    h1, h3 {
+      margin: 0.2rem 0;
+    }
+    fieldset {
+      border: 1px solid #666;
+      border-radius: 8px;
+      padding: 0.75rem 1rem 1rem;
+      margin-top: 1.25rem;
+      background: #181818;
+    }
+    legend {
+      padding: 0 0.5rem;
+      font-weight: 600;
+    }
+    label {
+      display: block;
+      margin-top: 0.4rem;
+      font-size: 0.9rem;
+    }
+    input, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.4rem 0.5rem;
+      margin-top: 0.2rem;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background: #111;
+      color: #eee;
+    }
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 0.6rem;
+      padding: 0.4rem 0.9rem;
+      border-radius: 4px;
+      border: 1px solid #888;
+      background: #222;
+      color: #eee;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #333;
+    }
+    .chart-wrapper {
+      margin-top: 0.8rem;
+    }
+    #chart10-wrapper { width: 85vw; max-width: 900px; }
+    #chart11-wrapper { width: 80vw; max-width: 900px; }
+    #chart12-wrapper { width: 80vw; max-width: 900px; }
+
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #aaa;
+      margin-top: 0.2rem;
+    }
+  </style>
+</head>
+<body>
+<main class="container">
+  <section class="left">
+    <h1>Asim Paudel (1002122407)</h1>
+    <h3>Quiz 5 — Data Viz</h3>
+
+    <fieldset>
+      <legend>10 — Amount Range Pie Chart</legend>
+      <label>
+        Minimum amount
+        <input type="number" id="q10_min" value="5">
+      </label>
+      <label>
+        Maximum amount
+        <input type="number" id="q10_max" value="20">
+      </label>
+      <div class="hint">
+        Shows foods where Amount is between min and max (inclusive).
+      </div>
+      <button type="button" onclick="drawPieChart()">Draw Pie Chart</button>
+      <div id="chart10-wrapper" class="chart-wrapper">
+        <canvas id="q10_pie"></canvas>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>11 — Amount Range Bar Chart</legend>
+      <label>
+        Minimum amount
+        <input type="number" id="q11_min" value="5">
+      </label>
+      <label>
+        Maximum amount
+        <input type="number" id="q11_max" value="20">
+      </label>
+      <div class="hint">
+        Vertical green bars, largest at the top, smallest at the bottom.
+      </div>
+      <button type="button" onclick="drawBarChart()">Draw Bar Chart</button>
+
+      <div id="chart11-wrapper" class="chart-wrapper">
+        <canvas id="q11_bar"></canvas>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>12 — XYC Sets Colored Scatter Chart</legend>
+      <label>
+        Enter up to 10 lines of <strong>X,Y,C</strong> (comma-separated).
+        <span class="hint">
+          C = 1 (Green), 2 (Black), 3 (Red). X,Y are 0–499.
+        </span>
+        <textarea id="q12_points" placeholder="Example:
+10,30,1
+100,200,2
+250,400,3"></textarea>
+      </label>
+      <button type="button" onclick="drawScatterChart()">Draw Scatter Chart</button>
+      <div id="chart12-wrapper" class="chart-wrapper">
+        <canvas id="q12_scatter"></canvas>
+      </div>
+    </fieldset>
+  </section>
+</main>
+
+<script>
+  const FOOD_DATA = [
+    { amount: 10, food: "Apples",     category: "F" },
+    { amount: 2,  food: "Bananas",    category: "F" },
+    { amount: 40, food: "Cherries",   category: "F" },
+    { amount: 1,  food: "Daikon",     category: "V" },
+    { amount: 10, food: "Fig",        category: "F" },
+    { amount: 50, food: "Grapes",     category: "F" },
+    { amount: 5,  food: "Peach",      category: "F" },
+    { amount: 12, food: "Celery",     category: "V" },
+    { amount: 25, food: "Watermelon", category: "F" }
+  ];
+
+  let pieChartInstance = null;
+  let barChartInstance = null;
+  let scatterChartInstance = null;
+
+  function filterByAmountRange(min, max) {
+    const minVal = Number(min);
+    const maxVal = Number(max);
+    return FOOD_DATA.filter(row => row.amount >= minVal && row.amount <= maxVal);
+  }
+
+  function drawPieChart() {
+    const min = document.getElementById("q10_min").value || 0;
+    const max = document.getElementById("q10_max").value || 9999;
+    const subset = filterByAmountRange(min, max);
+    if (subset.length === 0) {
+      alert("No foods in that range.");
+      return;
+    }
+    const labels = subset.map(row => row.food);
+    const values = subset.map(row => row.amount);
+    const total = values.reduce((a, b) => a + b, 0);
+    const sliceColors = [
+      "#ff6384", "#36a2eb", "#ffcd56", "#4bc0c0", "#9966ff",
+      "#ff9f40", "#8bc34a", "#e91e63", "#9c27b0", "#00bcd4"
+    ];
+    const ctx = document.getElementById("q10_pie").getContext("2d");
+    if (pieChartInstance) {
+      pieChartInstance.destroy();
+    }
+    pieChartInstance = new Chart(ctx, {
+      type: "pie",
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map((_, i) => sliceColors[i % sliceColors.length]),
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: false // we will label slices directly
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const value = context.parsed;
+                const pct = (value / total * 100).toFixed(1);
+                return `${context.label}: ${value} (${pct}%)`;
+              }
+            }
+          },
+          datalabels: {
+            labels: {
+              percent: {
+                color: "#fff",
+                formatter: function(value, ctx) {
+                  const pct = (value / total * 100).toFixed(1);
+                  return pct + "%";
+                },
+                anchor: "center",
+                align: "center",
+                font: {
+                  weight: "bold"
+                }
+              },
+              name: {
+                color: "#fff",
+                formatter: function(value, ctx) {
+                  return ctx.chart.data.labels[ctx.dataIndex];
+                },
+                anchor: "end",
+                align: "end",
+                offset: 10,
+                font: {
+                  weight: "normal",
+                  size: 11
+                }
+              }
+            }
+          }
+        }
+      },
+      plugins: [ChartDataLabels]
+    });
+  }
+
+  function drawBarChart() {
+    const min = document.getElementById("q11_min").value || 0;
+    const max = document.getElementById("q11_max").value || 9999;
+
+    // Filter and sort largest → smallest
+    let subset = filterByAmountRange(min, max);
+    if (subset.length === 0) {
+        alert("No foods in that range.");
+        return;
+    }
+    subset = subset.sort((a, b) => b.amount - a.amount);
+
+    const labels = subset.map(row => row.food);
+    const values = subset.map(row => row.amount);
+
+    const ctx = document.getElementById("q11_bar").getContext("2d");
+
+    if (barChartInstance) barChartInstance.destroy();
+
+    barChartInstance = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Amount",
+                data: values,
+                backgroundColor: "#2ecc71",   // green fill
+                borderColor: "#27ae60",
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            indexAxis: "x",   // ★ vertical bars
+            scales: {
+                x: {
+                    ticks: { color: "#ccc" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: "#ccc" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.label}: ${ctx.parsed.y}`
+                    }
+                },
+                datalabels: {
+                    labels: {
+                        amount: {
+                            color: "#000000",
+                            align: "mid",
+                            anchor: "start",
+                            offset: -20,
+                            formatter: (value) => value
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+}
+
+  function drawScatterChart() {
+    const raw = document.getElementById("q12_points").value.trim();
+    if (!raw) {
+      alert("Please enter at least one line of X,Y,C.");
+      return;
+    }
+
+    const lines = raw.split(/\r?\n/);
+    const points = [];
+
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+      const parts = line.split(",").map(p => p.trim());
+      if (parts.length < 3) continue;
+
+      const x = Number(parts[0]);
+      const y = Number(parts[1]);
+      const c = Number(parts[2]);
+
+      if (Number.isNaN(x) || Number.isNaN(y) || Number.isNaN(c)) continue;
+      if (x < 0 || x > 499 || y < 0 || y > 499) continue;
+
+      // Color mapping C=1 (green), 2 (black), 3 (red)
+      let color = "#00ff00";
+      if (c === 2) color = "#000000";
+      else if (c === 3) color = "#ff0000";
+      points.push({ x, y, c, color });
+    }
+    if (points.length === 0) {
+      alert("No valid points parsed. Check your X,Y,C lines.");
+      return;
+    }
+    const ctx = document.getElementById("q12_scatter").getContext("2d");
+    if (scatterChartInstance) {
+      scatterChartInstance.destroy();
+    }
+    scatterChartInstance = new Chart(ctx, {
+      type: "scatter",
+      data: {
+        datasets: [{
+          label: "Points",
+          data: points.map(p => ({ x: p.x, y: p.y })),
+          pointBackgroundColor: points.map(p => p.color),
+          pointBorderColor: points.map(p => p.color),
+          pointRadius: 5
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            type: "linear",
+            position: "bottom",
+            min: 0,
+            max: 500,
+            title: {
+              display: true,
+              text: "X",
+              color: "#ccc"
+            },
+            ticks: { color: "#ccc" },
+            grid: { color: "rgba(255,255,255,0.05)" }
+          },
+          y: {
+            type: "linear",
+            min: 0,
+            max: 500,
+            title: {
+              display: true,
+              text: "Y",
+              color: "#ccc"
+            },
+            ticks: { color: "#ccc" },
+            grid: { color: "rgba(255,255,255,0.05)" }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const p = context.raw;
+                const colorCode = points[context.dataIndex].c;
+                return `(${p.x}, ${p.y}), C=${colorCode}`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Optional: draw something by default so the page is not empty
+  window.addEventListener("load", () => {
+    drawPieChart();
+    drawBarChart();
+  });
+</script>
+</body>
+</html>

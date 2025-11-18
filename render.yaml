@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: qz4-flask-app
+    name: qz5-flask-app
     env: python
     plan: free
     region: oregon
@@ -9,7 +9,7 @@ services:
       pip install --upgrade pip
       pip install -r requirements.txt
     startCommand: |
-      gunicorn -w 2 -b 0.0.0.0:5000 Qz4:app
+      gunicorn -w 2 -b 0.0.0.0:5000 Qz5:app
     envVars:
       - key: FLASK_ENV
         value: production
